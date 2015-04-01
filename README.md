@@ -7,11 +7,9 @@ Usage
 =====
 
 The easiest way to get started with it is running it on a single text file. I recommend using a http://www.gutenberg.org/wiki/Main_Page book from Project Gutenberg. Put it in the same folder as Text Rearranger, and run  
-python textrearranger.py -i [name].txt -o output.txt -d  
--i and -o redirect input and output, and -d uses the default, optimal settings. Open up output.txt to see what happened! You can run the same input again to get a new result.
-
-After that, you can run  
-python textrearranger.py --help  
+`python textrearranger.py -i [name].txt -o output.txt -d`  
+`-i` and `-o` redirect input and output, and `-d` uses the default, optimal settings. Open up output.txt to see what happened! You can run the same input again to get a new result. After that, you can run  
+`python textrearranger.py --help`  
 to get a breakdown of what all the options are and do to dig deeper. Start with the settings -d automatically uses. Settings that are highly related to each other will be listed right next to each other.
 
 API
