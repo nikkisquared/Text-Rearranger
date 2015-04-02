@@ -1,6 +1,8 @@
 #!usr/bin/python
 
-# a program to re-write a long text file based on word topology
+"""a program to re-write a long text file based on word topology"""
+
+from __future__ import print_function
 
 import random
 import options
@@ -14,12 +16,13 @@ def tokenizer(f):
 
 
 def get_metadata(cmd, word):
-    """Parses out metadata for a word, based on command settings"""
+    """Parse out metadata for a word, based on command settings"""
 
     if not cmd["compare_case"]:
         case = ""
-    elif word.istitle():
-        case = "first"
+    elif (word.istitle() or (word[0].isupper() and
+            sum(1 for c in word if c.isupper()) == 1)):
+        case = "title"
     elif word.islower():
         case = "lower"
     elif word.isupper():
@@ -43,7 +46,7 @@ def get_metadata(cmd, word):
 
 
 def get_punctuation_point(word, start, step):
-    """Returns the point at which non-word punctuation ends"""
+    """Return the point at which non-word punctuation ends"""
     letter = start
     while (letter < len(word) and letter >= 0 and not word[letter].isalnum()):
         letter += step
@@ -52,7 +55,7 @@ def get_punctuation_point(word, start, step):
 
 def parse_punctuation(cmd, word):
     """
-    Returns the punctuation before the word, the stripped down word,
+    Return the punctuation before the word, the stripped down word,
     and the punctuation after the word
     """
     puncBefore = ""
@@ -78,20 +81,20 @@ def parse_punctuation(cmd, word):
 
     return puncBefore, word, puncAfter
 
-def build_dictionary(cmd):
+
+def fill_dictionary(cmd, dictionary, filterList, source="source"):
     """
-    Builds a dictionary sorted by case, leading letter, and length
+    Fill a dictionary sorted by case, leading letter, and length
     Each word is filtered by its' metadata, which depends on cmd arguments
     """
 
-    dictionary = {}
-
-    for word in tokenizer(cmd["source"]):
+    for word in tokenizer(cmd[source]):
 
         _, word, _ = parse_punctuation(cmd, word)
-        # sometimes there will only be punctuation
-        if not word:
+        if (not word or cmd["inspection_mode"] and 
+                not check_filter(cmd, filterList, word)):
             continue
+
         case, letter, length = get_metadata(cmd, word)
 
         if not dictionary.get(case):
@@ -103,29 +106,101 @@ def build_dictionary(cmd):
 
         dictionary[case][letter][length].append(word)
 
-    return dictionary
 
+def sort_dictionary(cmd, dictionary):
+    """Sorts a given dictionary based on commands"""
 
-def shuffle_dictionary(cmd, dictionary):
-    """Shuffles a given dictionary based on commands"""
+    uniqueOnly = False
+    shuffle = False
+
+    if (cmd["equal_weighting"] or cmd["pure_filter"] and
+            (cmd["keep_same"] or cmd["keep_different"])):
+        uniqueOnly = True
+    if cmd["usage_limited"] and not cmd["block_shuffle"]:
+        shuffle = True
 
     for case in dictionary:
         for letter in dictionary[case]:
             for length in dictionary[case][letter]:
                 wordList = dictionary[case][letter][length]
-                if (cmd["equal_weighting"] or cmd["filter_mode"] and
-                    (cmd["keep_same"] or cmd["keep_different"])):
+                if uniqueOnly:
                     wordList = list(set(wordList))
-                # randomizes words pulled
-                elif cmd["usage_limited"] and not cmd["block_shuffle"]:
+                # randomizes words pulled later
+                elif shuffle:
                     random.shuffle(wordList)
                 dictionary[case][letter][length] = wordList
 
 
-def get_replacement_word(cmd, dictionary, word):
+def check_filter(cmd, filterList, word):
     """
-    Tries to get a suitable replacement word, and return it
-    Returns an empty string if no replacement can be found
+    Check if a word is in a filter list
+    Return true if word should be used, false otherwise
+    """
+    found = word in filterList
+    if ((cmd["keep_same"] and not found or
+        cmd["keep_different"] and found)):
+        return False
+    return True
+
+
+def get_filter_list(cmd):
+    """Return a formatted filter list of words to compare against"""
+    filterList = set([])
+    if not (cmd["keep_same"] or cmd["keep_different"]):
+        return filterList
+    for word in tokenizer(cmd["filter"]):
+        _, word, _ = parse_punctuation(cmd, word)
+        filterList.add(word)
+    return filterList
+
+
+def dig_deeper(dictionary, level, sort, indent=0, order=None):
+    """Write me"""
+
+    output = []
+    newIndent = indent
+
+    if not order:
+        order = dictionary.keys()
+        order = sorted(order)
+    for thing in order:
+        if thing not in dictionary:
+            continue
+        if thing:
+            output.append("%s%s %s" % (
+                " " * indent, level[0], thing))
+            newIndent = indent + 2
+        if isinstance(dictionary[thing], dict):
+            output += dig_deeper(dictionary[thing], level[1:], sort, newIndent)
+        else:
+            wordList = dictionary[thing]
+            wordList = list(set(wordList))
+            if sort:
+                wordList = sorted(wordList, key=str.lower)
+            for word in wordList:
+                output.append("%s%s" % (" " * newIndent, word))
+
+    return output
+
+
+def generate_analysis(cmd, dictionary):
+    """Generates an analysis of statistics for dictionary findings"""
+
+    output = []
+
+    # kicks off with a custom order for top level
+    order = ["mixed", "upper", "first", "lower", ""]
+    level = ["Case", "Letter", "Length"]
+    sort = not cmd["block_inspection_sort"]
+    output = dig_deeper(dictionary, level, sort, order=order)
+    for line in output:
+        cmd["output"].write(line + "\n")
+
+
+def get_replacement_word(cmd, dictionary, filterList, word):
+    """
+    Try to get a suitable replacement word
+    Return an empty string if no replacement can be found
     """
 
     case, letter, length = get_metadata(cmd, word)
@@ -134,24 +209,22 @@ def get_replacement_word(cmd, dictionary, word):
         wordList = wordList.get(layer)
         if not wordList:
             return ""
-    found = word in wordList
 
-    if (len(wordList) == 0 or 
-        cmd["keep_same"] and not found or
-        cmd["keep_different"] and found):
+    if len(wordList) == 0 or not check_filter(cmd, filterList, word):
         return ""
-    elif cmd["filter_mode"] and (cmd["keep_same"] or cmd["keep_different"]):
+    elif cmd["pure_filter"]:
         return word
     elif cmd["equal_weighting"] or cmd["relative_usage"]:
         roll = random.randint(0, len(wordList) - 1)
         return wordList[roll]
     # falls back on limited usage
     else:
+        # popping from the end means less memory usage
         return wordList.pop(-1)
 
 
-def generate_text(cmd, dictionary):
-    """Fits back together the input text"""
+def generate_text(cmd, dictionary, filterList):
+    """Rearrange or filter the input text to create a new output"""
 
     output = []
     line = ""
@@ -169,13 +242,14 @@ def generate_text(cmd, dictionary):
         line += puncBefore
         # trying to replace empty words breaks metadata
         if word:
-            newWord = get_replacement_word(cmd, dictionary, word)
+            newWord = get_replacement_word(cmd, dictionary, filterList, word)
             line += newWord
         line += puncAfter
-        if newWord and line and line[-1] != "\n":
+        if newWord and line[-1] != "\n":
             line += " "
         else:
-            output.append(line)
+            # remove trailing spaces
+            output.append(line.replace(" \n", "\n"))
             line = ""
 
     output.append(line + "\n")
@@ -183,30 +257,23 @@ def generate_text(cmd, dictionary):
         cmd["output"].write(line)
 
 
-def print_dictionary(dictionary):
-    """Prints every layered word in the dictionary"""
-
-    for case in dictionary:
-        print "combing through case \"%s\"" % case
-        for letter in dictionary[case]:
-            print "  combing through letter \"%s\"" % letter
-            for length in dictionary[case][letter]:
-                print "    combing through length %s" % length
-                for word in dictionary[case][letter][length]:
-                    print "      %s" % word
-
-
 def main():
-    """Handles each section of the program from here"""
+    """Handle each section of the program from here"""
 
     cmd = options.get_command()
     if cmd["random_seed"] != -1:
         random.seed(cmd["seed"])
 
-    dictionary = build_dictionary(cmd)
-    shuffle_dictionary(cmd, dictionary)
-    # print_dictionary(dictionary)
-    generate_text(cmd, dictionary)
+    filterList = get_filter_list(cmd)
+    dictionary = {}
+    fill_dictionary(cmd, dictionary, filterList)
+    sort_dictionary(cmd, dictionary)
+
+    if cmd["inspection_mode"]:
+        generate_analysis(cmd, dictionary)
+    else:
+        generate_text(cmd, dictionary, filterList)
+
     for f in ("input", "source", "output"):
         cmd[f].close()
 
