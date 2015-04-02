@@ -154,8 +154,8 @@ def get_filter_list(cmd):
     return filterList
 
 
-def dig_deeper(dictionary, level, sort, indent=0, order=None):
-    """Write me"""
+def search_dictionary(dictionary, level, sort, indent=0, order=None):
+    """Recursively enter each level of a dictionary to find all contents"""
 
     output = []
     newIndent = indent
@@ -163,17 +163,19 @@ def dig_deeper(dictionary, level, sort, indent=0, order=None):
     if not order:
         order = dictionary.keys()
         order = sorted(order)
-    for thing in order:
-        if thing not in dictionary:
+
+    for section in order:
+        if section not in dictionary:
             continue
-        if thing:
+        if section:
             output.append("%s%s %s" % (
-                " " * indent, level[0], thing))
+                " " * indent, level[0], section))
             newIndent = indent + 2
-        if isinstance(dictionary[thing], dict):
-            output += dig_deeper(dictionary[thing], level[1:], sort, newIndent)
+        if isinstance(dictionary[section], dict):
+            output += search_dictionary(dictionary[section], level[1:], 
+                                        sort, newIndent)
         else:
-            wordList = dictionary[thing]
+            wordList = dictionary[section]
             wordList = list(set(wordList))
             if sort:
                 wordList = sorted(wordList, key=str.lower)
@@ -188,11 +190,10 @@ def generate_analysis(cmd, dictionary):
 
     output = []
 
-    # kicks off with a custom order for top level
     order = ["mixed", "upper", "first", "lower", ""]
     level = ["Case", "Letter", "Length"]
     sort = not cmd["block_inspection_sort"]
-    output = dig_deeper(dictionary, level, sort, order=order)
+    output = search_dictionary(dictionary, level, sort, order=order)
     for line in output:
         cmd["output"].write(line + "\n")
 

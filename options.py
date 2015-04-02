@@ -145,7 +145,7 @@ def validate_files(cmd):
     # [module] -F "..." (without -S or -D)
     if cmd["filter"]:
         if not (cmd["keep_same"] or cmd["keep_different"]):
-            sys.exit("ERROR: You can't use a filter file without using a "
+            print("WARNING: a filter file does nothing without using a "
                     "filter, -S or -D.")
         elif cmd["filter"] == cmd["input"]:
             sys.exit("ERROR: filter and input files are the same.")
@@ -156,8 +156,8 @@ def validate_files(cmd):
             print("NOTICE: filter file will use source file.")
         else:
             sys.exit("ERROR: You can't use a filter, -S or -D, without a "
-                    "filter file, and it can't be source because it is "
-                    "the same as input.")
+                    "filter file, and it can't use source as it is the "
+                    "same as input.")
 
     # check output file settings, and try to open it
     query = "%s already exists. Overwrite? Y/N\n"
@@ -202,11 +202,12 @@ def validate_command(cmd):
     if (cmd["source"] and cmd["usage_limited"] and
             cmd["input"] != cmd["source"]):
         print("WARNING: you are using a custom source with usage limiting "
-                "on, so the output might get truncated.")
+                "on, so the output might be truncated.")
 
     # [module] -I -P
     if cmd["inspection_mode"] and cmd["pure_filter"]:
-        print("WARNING: -P should not be used with -I, results undefined.")
+        print("WARNING: -P should not be used with -I, the results are "
+                "undefined and may be undesired.")
 
     # [module] -s "..." -P
     if cmd["pure_filter"] and cmd["source"]:
