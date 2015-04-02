@@ -185,7 +185,8 @@ def validate_files(cmd):
     if cmd["output"] != sys.stdout:
         if os.path.isfile(cmd["output"]): 
             if cmd["overwrite"]:
-                msgs.append("Automatically overwriting %s." % cmd["output"])
+                msgs.append("NOTICE: Automatically overwriting %s." % 
+                    cmd["output"])
             elif not raw_input(query % cmd["output"]).startswith("Y"):
                 sys.exit("Terminating. Rename your file or output parameter.")
         cmd["output"] = open(cmd["output"], 'w')
