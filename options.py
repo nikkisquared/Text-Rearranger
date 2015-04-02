@@ -13,6 +13,12 @@ parser = argparse.ArgumentParser(description=(
         "another file, then writes it back in a random order. Has various "
         "controls to filter output to be topologically similar."))
 
+# supress warnings and notices
+parser.add_argument("-w", "--warning-level", type=int, choices=[0, 1, 2, 3],
+                    default=2, help=("set level of warnings:\n0 - show none\n"
+                                "1 - show only warnings\n2 - show warnings "
+                                "and notices\n3 - show notices only"))
+
 # applies optimal settings
 parser.add_argument("-d", "--default", action="store_true",
                     help=("uses default (optimal) settings, identical to "
@@ -90,6 +96,19 @@ parser.add_argument("-D", "--keep-different", action="store_true",
                     help="replaces/keeps only words not found in source")
 
 
+def print_msgs(msgs, warning_level):
+    """Selectively prints warnings and notices"""
+    if warning_level == 0:
+        return None
+    for m in msgs:
+        if "NOTICE" in m and warning_level == 1:
+            continue
+        elif "WARNING" in m and warning_level == 3:
+            continue
+        else:
+            print(m)
+
+
 def open_file(fType, fName, comparison):
     """
     Open a file stream and return a pointer to it
@@ -106,11 +125,10 @@ def open_file(fType, fName, comparison):
         return open(fName, 'r')
 
 
-def get_command(validate=True):
+def get_command():
     """
-    Parse and updates CLI arguments into a dict
+    Parse and updates CLI arguments and return a dict of them
     Check input files and file settings
-    Optionally check for warnings on other arguments
     """
 
     cmd = vars(parser.parse_args())
@@ -121,10 +139,11 @@ def get_command(validate=True):
         for arg in defaults:
             cmd[arg] = True
 
-    if validate:
-        validate_command(cmd)
+    msgs = validate_command(cmd)
+    print_msgs(msgs, cmd["warning_level"])
 
-    validate_files(cmd)
+    msgs = validate_files(cmd)
+    print_msgs(msgs, cmd["warning_level"])
     for fType in ("input", "source", "filter"):
         if not isinstance(cmd[fType], file):
             cmd[fType] = open_file(fType, cmd[fType], cmd["output"])
@@ -135,25 +154,27 @@ def get_command(validate=True):
 def validate_files(cmd):
     """
     Check cmd for invalid or conflicting file input
+    Return notices and warnings
     Exit on fatally unmanageable input
     """
+    msgs = []
 
     if not cmd["source"]:
         cmd["source"] = cmd["input"]
-        print("NOTICE: source will be the same as input.")
+        msgs.append("NOTICE: source will be the same as input.")
 
     # [module] -F "..." (without -S or -D)
     if cmd["filter"]:
         if not (cmd["keep_same"] or cmd["keep_different"]):
-            print("WARNING: a filter file does nothing without using a "
-                    "filter, -S or -D.")
+            msgs.append("WARNING: a filter file does nothing without using "
+                    "a filter, -S or -D.")
         elif cmd["filter"] == cmd["input"]:
             sys.exit("ERROR: filter and input files are the same.")
     # [module] -S or -D (without -F "...")
     elif not cmd["filter"] and (cmd["keep_same"] or cmd["keep_different"]):
         if cmd["source"] != cmd["input"]:
             cmd["filter"] = cmd["source"]
-            print("NOTICE: filter file will use source file.")
+            msgs.append("NOTICE: filter file will use source file.")
         else:
             sys.exit("ERROR: You can't use a filter, -S or -D, without a "
                     "filter file, and it can't use source as it is the "
@@ -164,61 +185,67 @@ def validate_files(cmd):
     if cmd["output"] != sys.stdout:
         if os.path.isfile(cmd["output"]): 
             if cmd["overwrite"]:
-                print("Automatically overwriting %s." % cmd["output"])
+                msgs.append("Automatically overwriting %s." % cmd["output"])
             elif not raw_input(query % cmd["output"]).startswith("Y"):
                 sys.exit("Terminating. Rename your file or output parameter.")
         cmd["output"] = open(cmd["output"], 'w')
+
+    return msgs
 
 
 def validate_command(cmd):
     """
     Check cmd for invalid or conflicting input
-    Print warnings for possibly confusing results
+    Return notices and warnings on
     """
+    msg = []
 
     # [module] -c (without -l)
     if cmd["case_sensitive"] and not cmd["first_letter"]:
-        print("NOTICE: using -c does nothing without -l.")
+        msg.append("NOTICE: using -c does nothing without -l.")
 
     # [module] -b (without -u)
     if cmd["block_shuffle"] and not cmd["usage_limited"]:
-        print("NOTICE: using -b does nothing without -u.")
+        msg.append("NOTICE: using -b does nothing without -u.")
 
     # [module] -u -e, -r -e, or -u -r -e
     if cmd["equal_weighting"]:
         if cmd["usage_limited"] or cmd["relative_usage"]:
-            print("WARNING: -e overrides -u and -r, but you used two of them.")
+            msg.append("WARNING: -e overrides -u and -r, but you used two "
+                    "of them.")
     # [module] -u -r
     elif cmd["usage_limited"] and cmd["relative_usage"]:
-        print("WARNING: -r overrides -u, but you used both.")
+        msg.append("WARNING: -r overrides -u, but you used both.")
     # [module] (without -u, -r, or -e, and not -I or -P)
     elif (not cmd["usage_limited"] and
             not (cmd["inspection_mode"] or cmd["pure_filter"])):
-        print("WARNING: falling back on relative usage mode, since none of "
-                "-u, -r, or -e were defined.")
+        msg.append("WARNING: falling back on relative usage mode, since "
+                    "none of -u, -r, or -e were defined.")
         cmd["relative_usage"] = True
 
     # [module] -s source.txt -u
     if (cmd["source"] and cmd["usage_limited"] and
             cmd["input"] != cmd["source"]):
-        print("WARNING: you are using a custom source with usage limiting "
-                "on, so the output might be truncated.")
+        msg.append("WARNING: you are using a custom source with usage "
+                    "limiting on, so the output might be truncated.")
 
     # [module] -I -P
     if cmd["inspection_mode"] and cmd["pure_filter"]:
-        print("WARNING: -P should not be used with -I, the results are "
-                "undefined and may be undesired.")
+        msg.append("WARNING: -P should not be used with -I, the results are "
+                    "undefined and may be undesired.")
 
     # [module] -s "..." -P
     if cmd["pure_filter"] and cmd["source"]:
-        print("WARNING: You defined a source, but with -P the source will "
-                "not be used for anything.")
+        msg.append("WARNING: You defined a source, but with -P the source "
+                    "will not be used for anything.")
 
     # [module] -S -D
     if cmd["keep_same"] and cmd["keep_different"]:
-        print("WARNING: Filters -S and -D conflict and are opposites, "
-                "but you used both. Neither will be used.")
+        msg.append("WARNING: Filters -S and -D conflict and are opposites, "
+                    "but you used both. Neither will be used.")
         cmd["keep_same"] = False
         cmd["keep_different"] = False
         # sets this to false too just in case it's on
         cmd["pure_filter"] = False
+
+    return msg
