@@ -19,6 +19,8 @@ parser.add_argument("-w", "--warning-level", type=int,
                     help="set level of warnings (defaults to 2):\n"
                     "0 - show none\n1 - show only warnings\n"
                     "2 - show warnings and notices\n3 - show notices only")
+parser.add_argument("-E", "--explode-on-warning", action="store_true",
+                    help="program will now crash on warnings")
 
 # applies optimal settings
 parser.add_argument("-d", "--default", action="store_true",
@@ -92,10 +94,13 @@ parser.add_argument("-I", "--inspection-mode", action="store_true",
                         "output how it arranges its text storage")
 parser.add_argument("-B", "--block-inspection-sort", action="store_true",
                     help="leaves inspection data order unsorted")
-parser.add_argument("-q", "--frequency-int", action="store_true",
-                    help="WIP")
+parser.add_argument("-q", "--frequency-count", action="store_true",
+                    help="displays number of occurences of word")
 parser.add_argument("-Q", "--frequency-percent", action="store_true",
-                    help="WIP")
+                    help="displays overall percent frequency of word")
+parser.add_argument("-A", "--decimal-accuracy", type=int, default=2,
+                    help="defines number of decimals to use for -Q, "
+                        "defaults to 2")
 
 # filter mode, filters, filter organization
 parser.add_argument("-K", "--keep-mode", action="store_true",
@@ -114,17 +119,21 @@ parser.add_argument("-F", "--filter-source", action="store_true",
                     help="filters the source files' internal storage")
 
 
-def print_msgs(msgs, warning_level):
-    """Selectively prints warnings and notices"""
-    if warning_level == 0:
-        return None
+def print_msgs(cmd, msgs):
+    """
+    Selectively prints warnings and notices
+    Can crash on warnings if user desires
+    """
     for m in msgs:
-        if "NOTICE" in m and warning_level == 1:
+        if "NOTICE" in m and cmd["warning_level"] in (0, 1):
             continue
-        elif "WARNING" in m and warning_level == 3:
-            continue
-        else:
-            print(m)
+        elif "WARNING" in m:
+            if cmd["explode_on_warning"]:
+                print(m)
+                sys.exit("Program set to crash on WARNING.")
+            elif cmd["warning_level"] in (0, 3):
+                continue
+        print(m)
 
 
 def open_file(fType, fName, comparison):
@@ -158,10 +167,10 @@ def get_command():
             cmd[arg] = True
 
     msgs = validate_command(cmd)
-    print_msgs(msgs, cmd["warning_level"])
-
+    print_msgs(cmd, msgs)
     msgs = validate_files(cmd)
-    print_msgs(msgs, cmd["warning_level"])
+    print_msgs(cmd, msgs)
+
     for fType in ("input", "source", "filter"):
         if not isinstance(cmd[fType], file):
             cmd[fType] = open_file(fType, cmd[fType], cmd["output"])
@@ -219,13 +228,18 @@ def validate_command(cmd):
     """
     msg = []
 
+    # [module] -E -w (0 or 3)
+    if cmd["explode_on_warning"] and (cmd["warning_level"] in (0, 3)):
+        msg.append("WARNING: Program set to crash on warnings, but warnings "
+                    "have been hidden. Only one option should be set.")
+
     # [module] -c (without -l)
     if cmd["case_sensitive"] and not cmd["first_letter"]:
-        msg.append("NOTICE: using -c does nothing without -l.")
+        msg.append("NOTICE: Using -c does nothing without -l.")
 
     # [module] -b (without -u)
     if cmd["block_shuffle"] and not cmd["usage_limited"]:
-        msg.append("NOTICE: using -b does nothing without -u.")
+        msg.append("NOTICE: Using -b does nothing without -u.")
 
     # [module] -u -e, -r -e, or -u -r -e
     if cmd["equal_weighting"]:
@@ -257,8 +271,11 @@ def validate_command(cmd):
         msg.append("NOTICE: -B does nothing without -I.")
     # [module] -q or -Q (without -I)
     if (not cmd["inspection_mode"] and
-            (cmd["frequency_int"] or cmd["frequency_percent"])):
+            (cmd["frequency_count"] or cmd["frequency_percent"])):
         msg.append("NOTICE: -q and -Q do nothing without -I.")
+    # [module] -A [x] (without -Q)
+    if cmd["decimal_accuracy"] != 2 and not cmd["frequency_percent"]:
+        msg.append("NOTICE: -A effects only -Q, but you didn't call it.")
     # [module] -I -S or -D (without -F)
     if (cmd["inspection_mode"] and not cmd["filter_source"] and
             (cmd["filter_same"] or cmd["filter_different"])):

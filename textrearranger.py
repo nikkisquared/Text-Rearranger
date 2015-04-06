@@ -87,8 +87,11 @@ def fill_dictionary(cmd, dictionary, filterList, source="source"):
     Fill a dictionary sorted by case, leading letter, and length
     Each word is filtered by its' metadata, which depends on cmd arguments
     Will optionally filter the dictionary as it builds it
+    Also returns the count of each word, and total word count
     """
 
+    occurences = {}
+    wordCount = 0
     for word in tokenizer(cmd[source]):
 
         _, word, _ = parse_punctuation(cmd, word)
@@ -106,6 +109,12 @@ def fill_dictionary(cmd, dictionary, filterList, source="source"):
             dictionary[case][letter][length] = []
 
         dictionary[case][letter][length].append(word)
+        if not occurences.get(word):
+            occurences[word] = 0
+        occurences[word] += 1
+        wordCount += 1
+
+    return occurences, wordCount
 
 
 def sort_dictionary(cmd, dictionary):
@@ -159,7 +168,7 @@ def get_filter_list(cmd):
     return filterList
 
 
-def search_dictionary(dictionary, level, sort, indent=0, order=None):
+def search_dictionary(dictionary, level, sort, wordData, indent=0, order=None):
     """Recursively enter each level of a dictionary to find all contents"""
 
     output = []
@@ -178,27 +187,60 @@ def search_dictionary(dictionary, level, sort, indent=0, order=None):
             newIndent = indent + 2
         if isinstance(dictionary[section], dict):
             output += search_dictionary(dictionary[section], level[1:], 
-                                        sort, newIndent)
+                                        sort, wordData, newIndent)
         else:
             wordList = dictionary[section]
             wordList = list(set(wordList))
             if sort:
                 wordList = sorted(wordList, key=str.lower)
             for word in wordList:
-                output.append("%s%s" % (" " * newIndent, word))
+                line = "%s%s" % (" " * newIndent, word)
+                if wordData.get(word):
+                    line += " %s" % wordData[word]
+                output.append(line)
 
     return output
 
 
-def generate_analysis(cmd, dictionary):
+def create_word_data(cmd, occurences, wordCount):
+    """
+    Creates formatted output for 
+    """
+
+    wordData = {}
+    # percent values need to be float
+    wordCount *= 1.0
+
+    for word, count in occurences.items():
+
+        data = "{"
+        if cmd["frequency_count"]:
+            data += "count: %d" % count
+            if cmd["frequency_percent"]:
+                data += ", "
+        if cmd["frequency_percent"]:
+            percent = "frequency: {:." + str(cmd["decimal_accuracy"]) + "%}"
+            data += percent.format(count / wordCount)
+        data = data.strip()
+        data += "}"
+        # ie if nothing was added
+        if data == "{}":
+            data = ""
+        wordData[word] = data
+
+    return wordData
+
+
+def generate_analysis(cmd, dictionary, occurences, wordCount):
     """Generates an analysis of statistics for dictionary findings"""
 
     output = []
+    wordData = create_word_data(cmd, occurences, wordCount)
 
     order = ["mixed", "upper", "first", "lower", ""]
     level = ["Case", "Letter", "Length"]
     sort = not cmd["block_inspection_sort"]
-    output = search_dictionary(dictionary, level, sort, order=order)
+    output = search_dictionary(dictionary, level, sort, wordData, order=order)
     for line in output:
         cmd["output"].write(line + "\n")
 
@@ -278,11 +320,11 @@ def main():
 
     filterList = get_filter_list(cmd)
     dictionary = {}
-    fill_dictionary(cmd, dictionary, filterList)
+    occurences, wordCount = fill_dictionary(cmd, dictionary, filterList)
     sort_dictionary(cmd, dictionary)
 
     if cmd["inspection_mode"]:
-        generate_analysis(cmd, dictionary)
+        generate_analysis(cmd, dictionary, occurences, wordCount)
     else:
         generate_text(cmd, dictionary, filterList)
 
