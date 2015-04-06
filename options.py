@@ -53,6 +53,8 @@ parser.add_argument("-r", "--relative-usage", action="store_true",
 parser.add_argument("-e", "--equal-weighting", action="store_true",
                     help="forces equal weighting of every word, "
                         "but conflicts with and overrides -u and -r")
+parser.add_argument("-m", "--map-words", action="store_true",
+                    help="WIP")
 parser.add_argument("-R", "--random-seed", type=int, default=-1,
                     help="seeds random with given number")
 
@@ -91,9 +93,9 @@ parser.add_argument("-I", "--inspection-mode", action="store_true",
 parser.add_argument("-B", "--block-inspection-sort", action="store_true",
                     help="leaves inspection data order unsorted")
 parser.add_argument("-q", "--frequency-int", action="store_true",
-                    help="lists ")
+                    help="WIP")
 parser.add_argument("-Q", "--frequency-percent", action="store_true",
-                    help="")
+                    help="WIP")
 
 # filter mode, filters, filter organization
 parser.add_argument("-K", "--keep-mode", action="store_true",
@@ -102,10 +104,14 @@ parser.add_argument("-K", "--keep-mode", action="store_true",
 parser.add_argument("-P", "--pure-mode", action="store_true",
                     help="turns on pure filter mode, meaning no words will "
                         "be rearranged, but selectively filtered out")
-parser.add_argument("-S", "--keep-same", action="store_true",
-                    help="rearranges/keeps only words found in source")
-parser.add_argument("-D", "--keep-different", action="store_true",
-                    help="rearranges/keeps only words not found in source")
+parser.add_argument("-S", "--filter-same", action="store_true",
+                    help="rearranges/filters only words found in source")
+parser.add_argument("-D", "--filter-different", action="store_true",
+                    help="rearranges/filters only words not found in source")
+parser.add_argument("-L", "--compare-lower", action="store_true",
+                    help="filter file comparisons ignore case")
+parser.add_argument("-F", "--filter-source", action="store_true",
+                    help="filters the source files' internal storage")
 
 
 def print_msgs(msgs, warning_level):
@@ -175,21 +181,21 @@ def validate_files(cmd):
         cmd["source"] = cmd["input"]
         msgs.append("NOTICE: source will be the same as input.")
 
-    # [module] -F "..." (without -S or -D)
+    # [module] -f"..." (without -S or -D)
     if cmd["filter"]:
-        if not (cmd["keep_same"] or cmd["keep_different"]):
-            sys.exit("ERROR: a filter file does nothing without using "
-                    "a filter, -S or -D.")
+        if not (cmd["filter_same"] or cmd["filter_different"]):
+            msgs.append("WARNING: A filter file does nothing without using "
+                        "a filter, -S or -D.")
         elif cmd["filter"] == cmd["input"]:
             sys.exit("ERROR: filter and input files are the same.")
-    # [module] -S or -D (without -F "...")
-    elif not cmd["filter"] and (cmd["keep_same"] or cmd["keep_different"]):
+    # [module] -S or -D (without -f "...")
+    elif not cmd["filter"] and (cmd["filter_same"] or cmd["filter_different"]):
         if cmd["source"] != cmd["input"]:
             cmd["filter"] = cmd["source"]
-            msgs.append("NOTICE: filter file will use source file.")
+            msgs.append("NOTICE: filter file will be the source file.")
         else:
             sys.exit("ERROR: You can't use a filter, -S or -D, without a "
-                    "filter file, and it can't use source as it is the "
+                    "filter file, and it can't be source as it is the "
                     "same as input.")
 
     # check output file settings, and try to open it
@@ -246,13 +252,6 @@ def validate_command(cmd):
         msg.append("WARNING: You are using a custom source with usage "
                     "limiting on, so the output might be truncated.")
 
-    # [module] -f "..." -S or -D (without -I, -K, or -P):
-    if (cmd["filter"] and not (cmd["inspection_mode"] or
-            cmd["keep_mode"] or cmd["pure_mode"])):
-        msg.append("NOTICE: Falling back on keep-filter mode, since you "
-                    "defined a filter file and a filter, but not a mode.")
-        cmd["keep_mode"] = True
-
     # [module] -B (without -I)
     if cmd["block_inspection_sort"] and not cmd["inspection_mode"]:
         msg.append("NOTICE: -B does nothing without -I.")
@@ -260,6 +259,12 @@ def validate_command(cmd):
     if (not cmd["inspection_mode"] and
             (cmd["frequency_int"] or cmd["frequency_percent"])):
         msg.append("NOTICE: -q and -Q do nothing without -I.")
+    # [module] -I -S or -D (without -F)
+    if (cmd["inspection_mode"] and not cmd["filter_source"] and
+            (cmd["filter_same"] or cmd["filter_different"])):
+        msg.append("NOTICE: -I with -S or -D requires the -F flag, so "
+                    "it will be set for you.")
+        cmd["filter_source"] = True
 
     # [module] -s "..." -P
     if cmd["pure_mode"] and cmd["source"]:
@@ -274,8 +279,11 @@ def validate_command(cmd):
         msg.append("WARNING: Filter modes -K and -P are oppositional, "
                     "but you used both. Results are undefined.")
     # [module] -S -D
-    if cmd["keep_same"] and cmd["keep_different"]:
+    if cmd["filter_same"] and cmd["filter_different"]:
         msg.append("WARNING: Filters -S and -D are oppositional, "
                     "but you used both. Results are undefined.")
+    # [module] -P -F
+    if cmd["filter_source"] and cmd["pure_mode"]:
+        msg.append("NOTICE: -F does nothing in -P mode.")
 
     return msg

@@ -86,15 +86,16 @@ def fill_dictionary(cmd, dictionary, filterList, source="source"):
     """
     Fill a dictionary sorted by case, leading letter, and length
     Each word is filtered by its' metadata, which depends on cmd arguments
+    Will optionally filter the dictionary as it builds it
     """
 
     for word in tokenizer(cmd[source]):
 
         _, word, _ = parse_punctuation(cmd, word)
-        if (not word or cmd["inspection_mode"] and 
+        # source file should not be filtered except by request
+        if (not word or cmd["filter_source"] and
                 not check_filter(cmd, filterList, word)):
             continue
-
         case, letter, length = get_metadata(cmd, word)
 
         if not dictionary.get(case):
@@ -114,7 +115,7 @@ def sort_dictionary(cmd, dictionary):
     shuffle = False
 
     if (cmd["equal_weighting"] or cmd["pure_mode"] and
-            (cmd["keep_same"] or cmd["keep_different"])):
+            (cmd["filter_same"] or cmd["filter_different"])):
         uniqueOnly = True
     if cmd["usage_limited"] and not cmd["block_shuffle"]:
         shuffle = True
@@ -136,9 +137,11 @@ def check_filter(cmd, filterList, word):
     Check a word against a filter list and filter type
     Return true if word should be used, false otherwise
     """
+    if cmd["compare_lower"]:
+        word = word.lower()
     found = word in filterList
-    if ((cmd["keep_same"] and not found or
-        cmd["keep_different"] and found)):
+    if ((cmd["filter_same"] and not found or
+        cmd["filter_different"] and found)):
         return False
     return True
 
@@ -146,10 +149,12 @@ def check_filter(cmd, filterList, word):
 def get_filter_list(cmd):
     """Return a formatted filter list of words to compare against"""
     filterList = set([])
-    if not (cmd["keep_same"] or cmd["keep_different"]):
+    if not (cmd["filter_same"] or cmd["filter_different"]):
         return filterList
     for word in tokenizer(cmd["filter"]):
         _, word, _ = parse_punctuation(cmd, word)
+        if cmd["compare_lower"]:
+            word = word.lower()
         filterList.add(word)
     return filterList
 
@@ -269,7 +274,7 @@ def main():
 
     cmd = options.get_command()
     if cmd["random_seed"] != -1:
-        random.seed(cmd["seed"])
+        random.seed(cmd["random_seed"])
 
     filterList = get_filter_list(cmd)
     dictionary = {}
