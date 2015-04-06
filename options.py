@@ -56,7 +56,9 @@ parser.add_argument("-e", "--equal-weighting", action="store_true",
                     help="forces equal weighting of every word, "
                         "but conflicts with and overrides -u and -r")
 parser.add_argument("-m", "--map-words", action="store_true",
-                    help="WIP")
+                    help="maps each word to a unique replacement, and "
+                        "replaces every instance with that instead of "
+                        "pure re-arranging, and overrides -u, -r, and -e")
 parser.add_argument("-R", "--random-seed", type=int, default=-1,
                     help="seeds random with given number")
 
@@ -226,79 +228,95 @@ def validate_command(cmd):
     Check cmd for invalid or conflicting input
     Return notices and warnings on
     """
-    msg = []
+    msgs = []
 
     # [module] -E -w (0 or 3)
     if cmd["explode_on_warning"] and (cmd["warning_level"] in (0, 3)):
-        msg.append("WARNING: Program set to crash on warnings, but warnings "
+        msgs.append("WARNING: Program set to crash on warnings, but warnings "
                     "have been hidden. Only one option should be set.")
 
     # [module] -c (without -l)
     if cmd["case_sensitive"] and not cmd["first_letter"]:
-        msg.append("NOTICE: Using -c does nothing without -l.")
+        msgs.append("NOTICE: Using -c does nothing without -l.")
 
     # [module] -b (without -u)
     if cmd["block_shuffle"] and not cmd["usage_limited"]:
-        msg.append("NOTICE: Using -b does nothing without -u.")
+        msgs.append("NOTICE: Using -b does nothing without -u.")
 
+    # [module] -m -u, -m -r, -m -e, or any combination
+    if (cmd["map_words"] and (cmd["usage_limited"] or 
+            cmd["relative_usage"] or cmd["equal_weighting"])):
+        msgs.append("WARNING: -m overrides -u, -r, and -e, but you used "
+                    "two of them.")
     # [module] -u -e, -r -e, or -u -r -e
-    if cmd["equal_weighting"]:
-        if cmd["usage_limited"] or cmd["relative_usage"]:
-            msg.append("WARNING: -e overrides -u and -r, but you used two "
+    elif (cmd["equal_weighting"] and 
+            (cmd["usage_limited"] or cmd["relative_usage"])):
+        msgs.append("WARNING: -e overrides -u and -r, but you used two "
                     "of them.")
     # [module] -u -r
     elif cmd["usage_limited"] and cmd["relative_usage"]:
-        msg.append("WARNING: -r overrides -u, but you used both.")
-    # [module] (without -u, -r, or -e, and not -I or -P)
-    elif (not cmd["usage_limited"] and
+        msgs.append("WARNING: -r overrides -u, but you used both.")
+    # [module] (without -u, -r, -e, or -m, and not -I or -P)
+    elif (not (cmd["usage_limited"] or cmd["relative_usage"] or 
+            cmd["equal_weighting"] or cmd["map_words"]) and
             not (cmd["inspection_mode"] or cmd["pure_mode"])):
-        msg.append("NOTICE: Falling back on relative usage mode, since "
-                    "none of -u, -r, or -e were used.")
+        msgs.append("NOTICE: Falling back on relative usage mode, since "
+                    "none of -u, -r, -e, or -m were used.")
         cmd["relative_usage"] = True
 
     # [module] -t -T
     if cmd["soft_truncate_newlines"] and cmd["hard_truncate_newlines"]:
-        msg.append("NOTICE: You used both -t and -T, but -T implies -t.")
+        msgs.append("NOTICE: You used both -t and -T, but -T implies -t.")
 
     # [module] -s source.txt -u
     if (cmd["source"] and cmd["usage_limited"] and
             cmd["input"] != cmd["source"]):
-        msg.append("WARNING: You are using a custom source with usage "
+        msgs.append("WARNING: You are using a custom source with usage "
                     "limiting on, so the output might be truncated.")
 
     # [module] -B (without -I)
     if cmd["block_inspection_sort"] and not cmd["inspection_mode"]:
-        msg.append("NOTICE: -B does nothing without -I.")
+        msgs.append("NOTICE: -B does nothing without -I.")
     # [module] -q or -Q (without -I)
     if (not cmd["inspection_mode"] and
             (cmd["frequency_count"] or cmd["frequency_percent"])):
-        msg.append("NOTICE: -q and -Q do nothing without -I.")
+        msgs.append("NOTICE: -q and -Q do nothing without -I.")
     # [module] -A [x] (without -Q)
     if cmd["decimal_accuracy"] != 2 and not cmd["frequency_percent"]:
-        msg.append("NOTICE: -A effects only -Q, but you didn't call it.")
+        msgs.append("NOTICE: -A effects only -Q, but you didn't call it.")
     # [module] -I -S or -D (without -F)
     if (cmd["inspection_mode"] and not cmd["filter_source"] and
             (cmd["filter_same"] or cmd["filter_different"])):
-        msg.append("WARNING: -I with -S or -D requires the -F flag.")
+        msgs.append("WARNING: -I with -S or -D requires the -F flag.")
 
     # [module] -s "..." -P
     if cmd["pure_mode"] and cmd["source"]:
-        msg.append("WARNING: You defined a source, but with -P the source "
+        msgs.append("WARNING: You defined a source, but with -P the source "
                     "will not be used for anything.")
     # [module] -I -P
     if cmd["inspection_mode"] and cmd["pure_mode"]:
-        msg.append("WARNING: -P should not be used with -I. Results are "
+        msgs.append("WARNING: -P should not be used with -I. Results are "
                     "undefined and may be undesired.")
     # [module] -K -P
     if cmd["keep_mode"] and cmd["pure_mode"]:
-        msg.append("WARNING: Filter modes -K and -P are oppositional, "
+        msgs.append("WARNING: Filter modes -K and -P are oppositional, "
                     "but you used both. Results are undefined.")
     # [module] -S -D
     if cmd["filter_same"] and cmd["filter_different"]:
-        msg.append("WARNING: Filters -S and -D are oppositional, "
+        msgs.append("WARNING: Filters -S and -D are oppositional, "
                     "but you used both. Results are undefined.")
+    # WHY DOES THIS YELL SO MUCH
+    # MAKE SURE K P S D m WORK!!!!
+    # [module] -S -D (without -I, -K, or -P)
+    if (cmd["filter_same"] or cmd["filter_different"] and
+            not (cmd["inspection_mode"] or cmd["keep_mode"] or 
+            cmd["pure_mode"])):
+        print(cmd["keep_mode"])
+        msgs.append("WARNING: You called a filter, -S or -D, but without "
+                    "using a filter mode, -I, -K, or -S. Falling back on -K.")
+        cmd["keep_mode"] = True
     # [module] -P -F
     if cmd["filter_source"] and cmd["pure_mode"]:
-        msg.append("NOTICE: -F does nothing in -P mode.")
+        msgs.append("NOTICE: -F does nothing in -P mode.")
 
-    return msg
+    return msgs

@@ -259,35 +259,7 @@ def get_word_list(cmd, dictionary, word):
     return wordList
 
 
-def pull_word_map(cmd, dictionary, wordMap, word):
-    """
-    Try to pull the tabled replacement for a word
-    Update wordMap as needed along the way
-    Returns an empty string if there is no possible match
-    """
-
-    result = wordMap.get(word)
-    if result:
-        return result
-    
-    wordList = get_word_list(cmd, dictionary, word)
-    if not wordList:
-        return ""
-        
-    if len(wordList) == 1:
-        match = wordList[0]
-    else:
-        match = word
-        while match == word:
-            roll = random.randint(0, len(wordList) - 1)
-            match = wordList[roll]
-
-    wordList.remove(match)
-    wordMap[word] = match
-    return match
-
-
-def find_replacement(cmd, dictionary, word):
+def find_replacement(cmd, dictionary, wordMap, word):
     """
     Try to get a suitable replacement word
     Return an empty string if no replacement can be found
@@ -296,6 +268,17 @@ def find_replacement(cmd, dictionary, word):
     wordList = get_word_list(cmd, dictionary, word)
     if not wordList:
         return ""
+    elif cmd["map_words"]:
+        if len(wordList) == 1:
+            match = wordList[0]
+        else:
+            match = word
+            while match == word:
+                roll = random.randint(0, len(wordList) - 1)
+                match = wordList[roll]
+        wordList.remove(match)
+        wordMap[word] = match
+        return match
     elif cmd["equal_weighting"] or cmd["relative_usage"]:
         roll = random.randint(0, len(wordList) - 1)
         return wordList[roll]
@@ -326,14 +309,15 @@ def generate_text(cmd, dictionary, filterList):
         line += puncBefore
         if word:
             passedFilter = check_filter(cmd, filterList, word)
+            result = wordMap.get(word)
             if cmd["pure_mode"] and not passedFilter:
                 newWord = ""
             elif passedFilter and (cmd["pure_mode"] or cmd["keep_mode"]):
                 newWord = word
-            elif cmd["map_words"]:
-                newWord = pull_word_map(cmd, dictionary, wordMap, word)
+            elif result:
+                newWord = result
             else:
-                newWord = find_replacement(cmd, dictionary, word)
+                newWord = find_replacement(cmd, dictionary, wordMap, word)
             line += newWord
         line += puncAfter
         if newWord and line[-1] != "\n" and not cmd["truncate_whitespace"]:
