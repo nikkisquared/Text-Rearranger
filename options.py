@@ -8,31 +8,32 @@ import sys
 import os
 import argparse
 
-parser = argparse.ArgumentParser(description=(
-        "Takes a text file to re-write using the contents of itself, or "
-        "another file, then writes it back in a random order. Has various "
-        "controls to filter output to be topologically similar."))
+parser = argparse.ArgumentParser(description=
+    "Takes a text file to re-write using the contents of itself, or "
+    "another file, then writes it back in a random order. Has various "
+    "controls to filter output to be topologically similar.")
 
 # supress warnings and notices
-parser.add_argument("-w", "--warning-level", type=int, choices=[0, 1, 2, 3],
-                    default=2, help=("set level of warnings:\n0 - show none\n"
-                                "1 - show only warnings\n2 - show warnings "
-                                "and notices\n3 - show notices only"))
+parser.add_argument("-w", "--warning-level", type=int,
+                    choices=[0, 1, 2, 3], default=2,
+                    help="set level of warnings (defaults to 2):\n"
+                    "0 - show none\n1 - show only warnings\n"
+                    "2 - show warnings and notices\n3 - show notices only")
 
 # applies optimal settings
 parser.add_argument("-d", "--default", action="store_true",
-                    help=("uses default (optimal) settings, identical to "
-                            "running the program with -Clcnup"))
+                    help="uses default (optimal) settings, identical to "
+                            "running the program with -Clcnup")
 
 # case and leading letter sorting
+parser.add_argument("-C", "--compare-case", action="store_true",
+                    help="makes replacement words match case style, "
+                        "which mostly implies and overpowers -c")
 parser.add_argument("-l", "--first-letter", action="store_true",
-                    help=("requires first letter of a replacement word to be "
-                        "the same (case-insensitive without -c)"))
+                    help="requires first letter of a replacement word to be "
+                        "the same (case-insensitive without -c)")
 parser.add_argument("-c", "--case-sensitive", action="store_true",
                     help="makes -f case-sensitive, does nothing without -f")
-parser.add_argument("-C", "--compare-case", action="store_true",
-                    help=("makes replacement words match case style, "
-                        "which mostly implies and overpowers -c"))
 
 # length comparison sorting (what else to add?)
 parser.add_argument("-n", "--length-check", action="store_true",
@@ -40,60 +41,71 @@ parser.add_argument("-n", "--length-check", action="store_true",
 
 # algorithms for determining what words are rearranged with
 parser.add_argument("-u", "--usage-limited", action="store_true",
-                    help=("usage of each word is limited to the number of "
-                        "occurrences in the original text"))
-parser.add_argument("-r", "--relative-usage", action="store_true",
-                    help=("word usage will be based on relative frequency, "
-                        "but conflicts with and overrides -u, and also falls "
-                        "back on this if none of -u, -r, or -e are called"))
-parser.add_argument("-e", "--equal-weighting", action="store_true",
-                    help=("forces equal weighting of every word, "
-                        "but conflicts with and overrides -u and -r"))
+                    help="usage of each word is limited to the number of "
+                        "occurrences in the original text")
 parser.add_argument("-b", "--block-shuffle", action="store_true",
-                    help=("replacement words will not be shuffled, "
-                        "but only works with -u"))
+                    help="replacement words will not be shuffled, "
+                        "but only works with -u")
+parser.add_argument("-r", "--relative-usage", action="store_true",
+                    help="word usage will be based on relative frequency, "
+                        "but conflicts with and overrides -u, and also falls "
+                        "back on this if none of -u, -r, or -e are used")
+parser.add_argument("-e", "--equal-weighting", action="store_true",
+                    help="forces equal weighting of every word, "
+                        "but conflicts with and overrides -u and -r")
 parser.add_argument("-R", "--random-seed", type=int, default=-1,
                     help="seeds random with given number")
 
-# punctuation sorting and handling
+# punctuation sorting and whitespace handling
 parser.add_argument("-p", "--preserve-punctuation", action="store_true",
-                    help=("perfectly preserves all non-word punctuation if "
-                        "defined, treats punctuation as letters otherwise"))
-parser.add_argument("-t", "--truncate-newlines", action="store_true",
+                    help="perfectly preserves all non-word punctuation if "
+                        "defined, treats punctuation as letters otherwise")
+parser.add_argument("-t", "--soft-truncate-newlines", action="store_true",
                     help="newlines at the end of lines are removed")
+parser.add_argument("-T", "--hard-truncate-newlines", action="store_true",
+                    help="all newlines are removed completely")
+parser.add_argument("-W", "--truncate-whitespace", action="store_true",
+                    help="all whitespace between words will be removed")
 
 # input/output redirection
 parser.add_argument("-i", "--input", type=str, default=sys.stdin,
-                    help=("define an existing input file to re-arrange "
-                        "instead of falling back on standard input"))
+                    help="define an existing input file to re-arrange "
+                        "instead of falling back on standard input")
 parser.add_argument("-s", "--source", type=str, default=None,
-                    help=("define an existing source file to pull words from "
-                        "for rearranging, but falls back on input"))
+                    help="define an existing source file to pull words from "
+                        "for rearranging, but defaults to input if undefined")
 parser.add_argument("-f", "--filter", type=str, default=None,
-                    help=("define an existing filter file to compare "
+                    help="define an existing filter file to compare "
                         "against for selectively acting on words, and "
-                        "is absolutely required for filter modes"))
+                        "is only required for filter modes")
 parser.add_argument("-o", "--output", type=str, default=sys.stdout,
-                    help=("define an output file instead of falling back on "
-                        "standard output"))
+                    help="define an output file instead of falling back on "
+                        "standard output")
 parser.add_argument("-O", "--overwrite", action="store_true",
                     help="automatically overwrites the output file")
 
 # inspection mode and output options
 parser.add_argument("-I", "--inspection-mode", action="store_true",
-                    help=("turns on inspection mode, which will "
-                        "output how it arranges its text storage"))
+                    help="turns on inspection mode, which will "
+                        "output how it arranges its text storage")
 parser.add_argument("-B", "--block-inspection-sort", action="store_true",
                     help="leaves inspection data order unsorted")
+parser.add_argument("-q", "--frequency-int", action="store_true",
+                    help="lists ")
+parser.add_argument("-Q", "--frequency-percent", action="store_true",
+                    help="")
 
 # filter mode, filters, filter organization
-parser.add_argument("-P", "--pure-filter", action="store_true",
+parser.add_argument("-K", "--keep-mode", action="store_true",
+                    help="turns on keep filter mode, which keeps words not "
+                        "matching the filter, and rearranges others")
+parser.add_argument("-P", "--pure-mode", action="store_true",
                     help="turns on pure filter mode, meaning no words will "
                         "be rearranged, but selectively filtered out")
 parser.add_argument("-S", "--keep-same", action="store_true",
-                    help="replaces/keeps only words found in source")
+                    help="rearranges/keeps only words found in source")
 parser.add_argument("-D", "--keep-different", action="store_true",
-                    help="replaces/keeps only words not found in source")
+                    help="rearranges/keeps only words not found in source")
 
 
 def print_msgs(msgs, warning_level):
@@ -166,7 +178,7 @@ def validate_files(cmd):
     # [module] -F "..." (without -S or -D)
     if cmd["filter"]:
         if not (cmd["keep_same"] or cmd["keep_different"]):
-            msgs.append("WARNING: a filter file does nothing without using "
+            sys.exit("ERROR: a filter file does nothing without using "
                     "a filter, -S or -D.")
         elif cmd["filter"] == cmd["input"]:
             sys.exit("ERROR: filter and input files are the same.")
@@ -219,34 +231,51 @@ def validate_command(cmd):
         msg.append("WARNING: -r overrides -u, but you used both.")
     # [module] (without -u, -r, or -e, and not -I or -P)
     elif (not cmd["usage_limited"] and
-            not (cmd["inspection_mode"] or cmd["pure_filter"])):
-        msg.append("WARNING: falling back on relative usage mode, since "
-                    "none of -u, -r, or -e were defined.")
+            not (cmd["inspection_mode"] or cmd["pure_mode"])):
+        msg.append("NOTICE: Falling back on relative usage mode, since "
+                    "none of -u, -r, or -e were used.")
         cmd["relative_usage"] = True
+
+    # [module] -t -T
+    if cmd["soft_truncate_newlines"] and cmd["hard_truncate_newlines"]:
+        msg.append("NOTICE: You used both -t and -T, but -T implies -t.")
 
     # [module] -s source.txt -u
     if (cmd["source"] and cmd["usage_limited"] and
             cmd["input"] != cmd["source"]):
-        msg.append("WARNING: you are using a custom source with usage "
+        msg.append("WARNING: You are using a custom source with usage "
                     "limiting on, so the output might be truncated.")
 
-    # [module] -I -P
-    if cmd["inspection_mode"] and cmd["pure_filter"]:
-        msg.append("WARNING: -P should not be used with -I, the results are "
-                    "undefined and may be undesired.")
+    # [module] -f "..." -S or -D (without -I, -K, or -P):
+    if (cmd["filter"] and not (cmd["inspection_mode"] or
+            cmd["keep_mode"] or cmd["pure_mode"])):
+        msg.append("NOTICE: Falling back on keep-filter mode, since you "
+                    "defined a filter file and a filter, but not a mode.")
+        cmd["keep_mode"] = True
+
+    # [module] -B (without -I)
+    if cmd["block_inspection_sort"] and not cmd["inspection_mode"]:
+        msg.append("NOTICE: -B does nothing without -I.")
+    # [module] -q or -Q (without -I)
+    if (not cmd["inspection_mode"] and
+            (cmd["frequency_int"] or cmd["frequency_percent"])):
+        msg.append("NOTICE: -q and -Q do nothing without -I.")
 
     # [module] -s "..." -P
-    if cmd["pure_filter"] and cmd["source"]:
+    if cmd["pure_mode"] and cmd["source"]:
         msg.append("WARNING: You defined a source, but with -P the source "
                     "will not be used for anything.")
-
+    # [module] -I -P
+    if cmd["inspection_mode"] and cmd["pure_mode"]:
+        msg.append("WARNING: -P should not be used with -I. Results are "
+                    "undefined and may be undesired.")
+    # [module] -K -P
+    if cmd["keep_mode"] and cmd["pure_mode"]:
+        msg.append("WARNING: Filter modes -K and -P are oppositional, "
+                    "but you used both. Results are undefined.")
     # [module] -S -D
     if cmd["keep_same"] and cmd["keep_different"]:
-        msg.append("WARNING: Filters -S and -D conflict and are opposites, "
-                    "but you used both. Neither will be used.")
-        cmd["keep_same"] = False
-        cmd["keep_different"] = False
-        # sets this to false too just in case it's on
-        cmd["pure_filter"] = False
+        msg.append("WARNING: Filters -S and -D are oppositional, "
+                    "but you used both. Results are undefined.")
 
     return msg

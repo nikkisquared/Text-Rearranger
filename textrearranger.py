@@ -61,7 +61,7 @@ def parse_punctuation(cmd, word):
     puncBefore = ""
     puncAfter = ""
 
-    if cmd["truncate_newlines"]:
+    if cmd["soft_truncate_newlines"] or cmd["hard_truncate_newlines"]:
         word = word.strip()
     if cmd["preserve_punctuation"]:
         cutoff = get_punctuation_point(word, 0, 1)
@@ -113,7 +113,7 @@ def sort_dictionary(cmd, dictionary):
     uniqueOnly = False
     shuffle = False
 
-    if (cmd["equal_weighting"] or cmd["pure_filter"] and
+    if (cmd["equal_weighting"] or cmd["pure_mode"] and
             (cmd["keep_same"] or cmd["keep_different"])):
         uniqueOnly = True
     if cmd["usage_limited"] and not cmd["block_shuffle"]:
@@ -133,7 +133,7 @@ def sort_dictionary(cmd, dictionary):
 
 def check_filter(cmd, filterList, word):
     """
-    Check if a word is in a filter list
+    Check a word against a filter list and filter type
     Return true if word should be used, false otherwise
     """
     found = word in filterList
@@ -210,10 +210,11 @@ def get_replacement_word(cmd, dictionary, filterList, word):
         wordList = wordList.get(layer)
         if not wordList:
             return ""
+    passedFilter = check_filter(cmd, filterList, word)
 
-    if len(wordList) == 0 or not check_filter(cmd, filterList, word):
+    if len(wordList) == 0 or (cmd["pure_mode"] and not passedFilter):
         return ""
-    elif cmd["pure_filter"]:
+    elif passedFilter and (cmd["pure_mode"] or cmd["keep_mode"]):
         return word
     elif cmd["equal_weighting"] or cmd["relative_usage"]:
         roll = random.randint(0, len(wordList) - 1)
@@ -232,10 +233,12 @@ def generate_text(cmd, dictionary, filterList):
     for word in tokenizer(cmd["input"]):
 
         if word == "\n":
-            line += "\n"
+            if not cmd["hard_truncate_newlines"]:
+                line += "\n"
             continue
         if word == "":
-            line += " "
+            if not cmd["truncate_whitespace"]:
+                line += " "
             continue
 
         puncBefore, word, puncAfter = parse_punctuation(cmd, word)
@@ -246,16 +249,19 @@ def generate_text(cmd, dictionary, filterList):
             newWord = get_replacement_word(cmd, dictionary, filterList, word)
             line += newWord
         line += puncAfter
-        if newWord and line[-1] != "\n":
+        if newWord and line[-1] != "\n" and not cmd["truncate_whitespace"]:
             line += " "
         else:
             # remove trailing spaces
             output.append(line.replace(" \n", "\n"))
             line = ""
 
-    output.append(line + "\n")
+    output.append(line)
     for line in output:
         cmd["output"].write(line)
+    # ensures a single newline at the end of the output
+    if not cmd["hard_truncate_newlines"]:
+        cmd["output"].write("\n")
 
 
 def main():
