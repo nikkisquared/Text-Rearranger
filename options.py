@@ -279,9 +279,7 @@ def validate_command(cmd):
     # [module] -I -S or -D (without -F)
     if (cmd["inspection_mode"] and not cmd["filter_source"] and
             (cmd["filter_same"] or cmd["filter_different"])):
-        msg.append("NOTICE: -I with -S or -D requires the -F flag, so "
-                    "it will be set for you.")
-        cmd["filter_source"] = True
+        msg.append("WARNING: -I with -S or -D requires the -F flag.")
 
     # [module] -s "..." -P
     if cmd["pure_mode"] and cmd["source"]:

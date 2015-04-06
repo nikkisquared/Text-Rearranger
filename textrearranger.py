@@ -123,8 +123,8 @@ def sort_dictionary(cmd, dictionary):
     uniqueOnly = False
     shuffle = False
 
-    if (cmd["equal_weighting"] or cmd["pure_mode"] and
-            (cmd["filter_same"] or cmd["filter_different"])):
+    if (cmd["pure_mode"] and (cmd["filter_same"] or cmd["filter_different"]) or
+            cmd["equal_weighting"] or cmd["map_words"]):
         uniqueOnly = True
     if cmd["usage_limited"] and not cmd["block_shuffle"]:
         shuffle = True
@@ -195,8 +195,9 @@ def search_dictionary(dictionary, level, sort, wordData, indent=0, order=None):
                 wordList = sorted(wordList, key=str.lower)
             for word in wordList:
                 line = "%s%s" % (" " * newIndent, word)
-                if wordData.get(word):
-                    line += " %s" % wordData[word]
+                data = wordData.get(word)
+                if data:
+                    line += " %s" % data
                 output.append(line)
 
     return output
@@ -245,24 +246,56 @@ def generate_analysis(cmd, dictionary, occurences, wordCount):
         cmd["output"].write(line + "\n")
 
 
-def get_replacement_word(cmd, dictionary, filterList, word):
+def get_word_list(cmd, dictionary, word):
+    """
+    Sort through a dictionary to try to find a matching wordList
+    Return either the wordList or None
+    """
+    wordList = dictionary
+    for layer in get_metadata(cmd, word):
+        wordList = wordList.get(layer)
+        if not wordList:
+            return None
+    return wordList
+
+
+def pull_word_map(cmd, dictionary, wordMap, word):
+    """
+    Try to pull the tabled replacement for a word
+    Update wordMap as needed along the way
+    Returns an empty string if there is no possible match
+    """
+
+    result = wordMap.get(word)
+    if result:
+        return result
+    
+    wordList = get_word_list(cmd, dictionary, word)
+    if not wordList:
+        return ""
+        
+    if len(wordList) == 1:
+        match = wordList[0]
+    else:
+        match = word
+        while match == word:
+            roll = random.randint(0, len(wordList) - 1)
+            match = wordList[roll]
+
+    wordList.remove(match)
+    wordMap[word] = match
+    return match
+
+
+def find_replacement(cmd, dictionary, word):
     """
     Try to get a suitable replacement word
     Return an empty string if no replacement can be found
     """
 
-    case, letter, length = get_metadata(cmd, word)
-    wordList = dictionary
-    for layer in get_metadata(cmd, word):
-        wordList = wordList.get(layer)
-        if not wordList:
-            return ""
-    passedFilter = check_filter(cmd, filterList, word)
-
-    if len(wordList) == 0 or (cmd["pure_mode"] and not passedFilter):
+    wordList = get_word_list(cmd, dictionary, word)
+    if not wordList:
         return ""
-    elif passedFilter and (cmd["pure_mode"] or cmd["keep_mode"]):
-        return word
     elif cmd["equal_weighting"] or cmd["relative_usage"]:
         roll = random.randint(0, len(wordList) - 1)
         return wordList[roll]
@@ -277,6 +310,7 @@ def generate_text(cmd, dictionary, filterList):
 
     output = []
     line = ""
+    wordMap = {}
     for word in tokenizer(cmd["input"]):
 
         if word == "\n":
@@ -289,11 +323,17 @@ def generate_text(cmd, dictionary, filterList):
             continue
 
         puncBefore, word, puncAfter = parse_punctuation(cmd, word)
-
         line += puncBefore
-        # trying to replace empty words breaks metadata
         if word:
-            newWord = get_replacement_word(cmd, dictionary, filterList, word)
+            passedFilter = check_filter(cmd, filterList, word)
+            if cmd["pure_mode"] and not passedFilter:
+                newWord = ""
+            elif passedFilter and (cmd["pure_mode"] or cmd["keep_mode"]):
+                newWord = word
+            elif cmd["map_words"]:
+                newWord = pull_word_map(cmd, dictionary, wordMap, word)
+            else:
+                newWord = find_replacement(cmd, dictionary, word)
             line += newWord
         line += puncAfter
         if newWord and line[-1] != "\n" and not cmd["truncate_whitespace"]:
@@ -306,7 +346,7 @@ def generate_text(cmd, dictionary, filterList):
     output.append(line)
     for line in output:
         cmd["output"].write(line)
-    # ensures a single newline at the end of the output
+    # ensures at least one newline at the end of the output
     if not cmd["hard_truncate_newlines"]:
         cmd["output"].write("\n")
 
