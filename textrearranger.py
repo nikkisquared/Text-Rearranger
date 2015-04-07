@@ -6,14 +6,21 @@ from __future__ import print_function#, unicode_literals
 
 import random
 import options
-import time
-
+import copy
 
 def tokenizer(f):
     """Iterator that yields every word from a given open file"""
     for line in f:
         for word in line.split(" "):
             yield word
+
+
+def iter_dictionary(dictionary):
+    """Iterator that yields every list of words from a given dictionary"""
+    for case in dictionary:
+        for letter in dictionary[case]:
+            for length in dictionary[case][letter]:
+                yield dictionary[case][letter][length]
 
 
 def get_metadata(cmd, word):
@@ -143,7 +150,6 @@ def sort_dictionary(cmd, dictionary):
     if cmd["limited_usage"] and not cmd["block_shuffle"]:
         shuffle = True
 
-
     for case in dictionary:
         for letter in dictionary[case]:
             for length in dictionary[case][letter]:
@@ -217,8 +223,8 @@ def search_dictionary(dictionary, level, sort, wordData, indent=0, order=None):
             for word in wordList:
                 line = "%s%s" % (" " * newIndent, word)
                 data = wordData.get(word)
-                if data:
-                    line += " %s" % data
+                if data["str"]:
+                    line += " %s" % data["str"]
                 output.append(line)
 
     return output
@@ -235,22 +241,51 @@ def create_word_data(cmd, occurences, wordCount):
 
     for word, count in occurences.items():
 
-        data = "{"
+        data = {"str": "{"}
+        data["count"] = count
+        data["percent"] = count / wordCount * 100
         if cmd["frequency_count"]:
-            data += "count: %d" % count
+            data["str"] += "count: %d" % count
             if cmd["frequency_percent"]:
-                data += ", "
+                data["str"] += ", "
         if cmd["frequency_percent"]:
             percent = "frequency: {:." + str(cmd["decimal_accuracy"]) + "%}"
-            data += percent.format(count / wordCount)
-        data = data.strip()
-        data += "}"
+            data["str"] += percent.format(count / wordCount)
+        data["str"] += "}"
         # ie if nothing was added
-        if data == "{}":
-            data = ""
+        if data["str"] == "{}":
+            data["str"] = ""
         wordData[word] = data
 
     return wordData
+
+
+def limit_dictionary(cmd, dictionary, wordData):
+    """Limit a dictionary based on wanted word counts"""
+
+    for case in dictionary:
+        for letter in dictionary[case]:
+            for length in dictionary[case][letter]:
+                wordList = dictionary[case][letter][length]
+                newWordList = []
+                for word in wordList:
+                    count = wordData[word]["count"]
+                    percent = wordData[word]["percent"]
+                    if (count >= cmd["count_minimum"] and
+                            percent >= cmd["percent_minimum"]):
+                        newWordList.append(word)
+                    dictionary[case][letter][length] = newWordList
+
+    temp = copy.deepcopy(dictionary)
+    for case in temp:
+        for letter in temp[case]:
+            for length in temp[case][letter]:
+                if len(dictionary[case][letter][length]) == 0:
+                    dictionary[case][letter].pop(length)
+            if len(dictionary[case][letter]) == 0:
+                dictionary[case].pop(letter)
+        if len(dictionary[case]) == 0:
+            dictionary.pop(case)
 
 
 def generate_analysis(cmd, dictionary, occurences, wordCount):
@@ -258,6 +293,7 @@ def generate_analysis(cmd, dictionary, occurences, wordCount):
 
     output = []
     wordData = create_word_data(cmd, occurences, wordCount)
+    limit_dictionary(cmd, dictionary, wordData)
 
     order = ["mixed", "upper", "first", "lower", ""]
     level = ["Case", "Letter", "Length"]
@@ -374,7 +410,6 @@ def generate_text(cmd, dictionary, filterList):
 
 def main():
     """Run the program"""
-    start = time.time()
 
     cmd = options.get_command()
     if cmd["random_seed"] != -1:

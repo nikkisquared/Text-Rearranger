@@ -119,10 +119,10 @@ parser.add_argument("-Q", "--frequency-percent", action="store_true",
 parser.add_argument("-A", "--decimal-accuracy", type=int, default=2,
                     help="defines number of decimals to use for -Q, "
                         "defaults to 2")
-parser.add_argument("-x", "--count-minimum", type=int, default=-1,
+parser.add_argument("-x", "--count-minimum", type=int, default=0,
                     help="define minimum number of occurences for word "
                         "information to be displayed")
-parser.add_argument("-X", "--percent-minimum", type=int, default=-1,
+parser.add_argument("-X", "--percent-minimum", type=float, default=0,
                     help="define minimum frequency percent for word "
                         "information to be displayed, with a max of 100")
 
@@ -326,7 +326,8 @@ def validate_command(cmd):
         msgs.append("NOTICE: -I with -S or -D requires the -F flag.")
     # [module] -X [x] (where x is >100)
     if cmd["percent_minimum"] > 100:
-        msg.append("WARNING: -X was defined with ")
+        msgs.append("WARNING: -X was defined with a value higher than 100, "
+                    "meaning nothing will show up for inspection.")
 
 
     # [module] -s "..." -P
