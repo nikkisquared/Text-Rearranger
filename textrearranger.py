@@ -1,6 +1,6 @@
 #!usr/bin/python
 
-"""a program to re-write a long text file based on word topology"""
+"""Re-write a text stream based on word topology"""
 
 from __future__ import print_function
 
@@ -65,19 +65,30 @@ def parse_punctuation(cmd, word):
         word = word.strip()
     if cmd["preserve_punctuation"]:
         cutoff = get_punctuation_point(word, 0, 1)
-        puncBefore = word[:cutoff]
+        if not cmd["void_outer"]:
+            puncBefore = word[:cutoff]
         word = word[cutoff:]
 
         cutoff = get_punctuation_point(word, len(word) - 1, -1)
         # the last letter is the default target
         cutoff += 1
-        puncAfter = word[cutoff:]
+        if not cmd["void_outer"]:
+            puncAfter = word[cutoff:]
+        elif word and word[-1] == "\n":
+            puncAfter += word[-1]
         word = word[:cutoff]
     # split newlines from word
     elif word:
         if word[-1] == "\n":
             word = word[:-1]
             puncAfter = "\n"
+
+    if cmd["void_inner"]:
+        temp = ""
+        for c in word:
+            if c.isalnum():
+                temp += c
+        word = temp
 
     return puncBefore, word, puncAfter
 
@@ -126,7 +137,7 @@ def sort_dictionary(cmd, dictionary):
     if (cmd["pure_mode"] and (cmd["filter_same"] or cmd["filter_different"]) or
             cmd["equal_weighting"] or cmd["map_words"]):
         uniqueOnly = True
-    if cmd["usage_limited"] and not cmd["block_shuffle"]:
+    if cmd["limited_usage"] and not cmd["block_shuffle"]:
         shuffle = True
 
     for case in dictionary:
@@ -144,15 +155,15 @@ def sort_dictionary(cmd, dictionary):
 def check_filter(cmd, filterList, word):
     """
     Check a word against a filter list and filter type
-    Return true if word should be used, false otherwise
+    Return true if word should be filtered, false otherwise
     """
     if cmd["compare_lower"]:
         word = word.lower()
     found = word in filterList
-    if ((cmd["filter_same"] and not found or
-        cmd["filter_different"] and found)):
-        return False
-    return True
+    if ((cmd["filter_same"] and found) or
+        (cmd["filter_different"] and not found)):
+        return True
+    return False
 
 
 def get_filter_list(cmd):
@@ -247,15 +258,12 @@ def generate_analysis(cmd, dictionary, occurences, wordCount):
 
 
 def get_word_list(cmd, dictionary, word):
-    """
-    Sort through a dictionary to try to find a matching wordList
-    Return either the wordList or None
-    """
+    """Sort through a dictionary to find a matching wordList, if any"""
     wordList = dictionary
     for layer in get_metadata(cmd, word):
         wordList = wordList.get(layer)
         if not wordList:
-            return None
+            return []
     return wordList
 
 
@@ -263,29 +271,56 @@ def find_replacement(cmd, dictionary, wordMap, word):
     """
     Try to get a suitable replacement word
     Return an empty string if no replacement can be found
+    Update wordMap along the way as needed
     """
 
     wordList = get_word_list(cmd, dictionary, word)
     if not wordList:
-        return ""
-    elif cmd["map_words"]:
-        if len(wordList) == 1:
-            match = wordList[0]
-        else:
-            match = word
-            while match == word:
-                roll = random.randint(0, len(wordList) - 1)
-                match = wordList[roll]
-        wordList.remove(match)
-        wordMap[word] = match
-        return match
+        newWord = ""
+    elif len(wordList) == 1:
+        newWord = wordList[0]
+    elif cmd["map_words"] or cmd["get_different"]:
+        newWord = word
+        attempts = 0
+        while newWord == word and attempts < len(wordList):
+            roll = random.randint(0, len(wordList) - 1)
+            newWord = wordList[roll]
+            attempts += 1
+        if cmd["limited_usage"]:
+            wordList.remove(newWord)
     elif cmd["equal_weighting"] or cmd["relative_usage"]:
         roll = random.randint(0, len(wordList) - 1)
-        return wordList[roll]
+        newWord = wordList[roll]
     # falls back on limited usage
     else:
         # popping from the end means less memory usage
-        return wordList.pop(-1)
+        newWord.pop(wordList[-1])
+
+    if cmd["map_words"]:
+        # print(wordList)
+        wordList.remove(newWord)
+        wordMap[word] = newWord
+
+    return newWord
+
+
+def get_new_word(cmd, dictionary, filterList, wordMap, word):
+    """Get a new word from any possible method"""
+    passedFilter = check_filter(cmd, filterList, word)
+    result = wordMap.get(word)
+    if cmd["pure_mode"] and not passedFilter:
+        # print("pure filter failure: %s" % word)
+        newWord = ""
+    elif passedFilter:
+        # print("filter success: %s" % word)
+        newWord = word
+    elif result:
+        # print("word map success: %s from %s" % (result, word))
+        newWord = result
+    else:
+        newWord = find_replacement(cmd, dictionary, wordMap, word)
+        # print("replaced: %s with %s" % (word, newWord))
+    return newWord
 
 
 def generate_text(cmd, dictionary, filterList):
@@ -308,19 +343,10 @@ def generate_text(cmd, dictionary, filterList):
         puncBefore, word, puncAfter = parse_punctuation(cmd, word)
         line += puncBefore
         if word:
-            passedFilter = check_filter(cmd, filterList, word)
-            result = wordMap.get(word)
-            if cmd["pure_mode"] and not passedFilter:
-                newWord = ""
-            elif passedFilter and (cmd["pure_mode"] or cmd["keep_mode"]):
-                newWord = word
-            elif result:
-                newWord = result
-            else:
-                newWord = find_replacement(cmd, dictionary, wordMap, word)
+            newWord = get_new_word(cmd, dictionary, filterList, wordMap, word)
             line += newWord
         line += puncAfter
-        if newWord and line[-1] != "\n" and not cmd["truncate_whitespace"]:
+        if line and line[-1] != "\n" and not cmd["truncate_whitespace"]:
             line += " "
         else:
             # remove trailing spaces
@@ -330,13 +356,13 @@ def generate_text(cmd, dictionary, filterList):
     output.append(line)
     for line in output:
         cmd["output"].write(line)
-    # ensures at least one newline at the end of the output
-    if not cmd["hard_truncate_newlines"]:
+    # ensures one newline at the end of the output
+    if not cmd["hard_truncate_newlines"] and (line and line[-1] == "\n"):
         cmd["output"].write("\n")
 
 
 def main():
-    """Handle each section of the program from here"""
+    """Run the program"""
 
     cmd = options.get_command()
     if cmd["random_seed"] != -1:

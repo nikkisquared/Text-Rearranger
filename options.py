@@ -1,6 +1,6 @@
 #!usr/bin/python
 
-"""handles parsing program input and file opening"""
+"""Handle parsing program input and file opening"""
 
 from __future__ import print_function
 
@@ -25,9 +25,9 @@ parser.add_argument("-E", "--explode-on-warning", action="store_true",
 # applies optimal settings
 parser.add_argument("-d", "--default", action="store_true",
                     help="uses default (optimal) settings, identical to "
-                            "running the program with -Clcnup")
+                            "running the program with -Clcnupg")
 
-# case and leading letter sorting
+# layers to sort words on
 parser.add_argument("-C", "--compare-case", action="store_true",
                     help="makes replacement words match case style, "
                         "which mostly implies and overpowers -c")
@@ -36,13 +36,11 @@ parser.add_argument("-l", "--first-letter", action="store_true",
                         "the same (case-insensitive without -c)")
 parser.add_argument("-c", "--case-sensitive", action="store_true",
                     help="makes -f case-sensitive, does nothing without -f")
-
-# length comparison sorting (what else to add?)
 parser.add_argument("-n", "--length-check", action="store_true",
                     help="requires length of a replacement word to be equal")
 
-# algorithms for determining what words are rearranged with
-parser.add_argument("-u", "--usage-limited", action="store_true",
+# algorithms for determining word re-arrangement
+parser.add_argument("-u", "--limited-usage", action="store_true",
                     help="usage of each word is limited to the number of "
                         "occurrences in the original text")
 parser.add_argument("-b", "--block-shuffle", action="store_true",
@@ -59,6 +57,8 @@ parser.add_argument("-m", "--map-words", action="store_true",
                     help="maps each word to a unique replacement, and "
                         "replaces every instance with that instead of "
                         "pure re-arranging, and overrides -u, -r, and -e")
+parser.add_argument("-g", "--get-different", action="store_true",
+                    help="tries to get different words for replacement")
 parser.add_argument("-R", "--random-seed", type=int, default=-1,
                     help="seeds random with given number")
 
@@ -66,6 +66,10 @@ parser.add_argument("-R", "--random-seed", type=int, default=-1,
 parser.add_argument("-p", "--preserve-punctuation", action="store_true",
                     help="perfectly preserves all non-word punctuation if "
                         "defined, treats punctuation as letters otherwise")
+parser.add_argument("-v", "--void-outer", action="store_true",
+                    help="delete punctuation outside words")
+parser.add_argument("-V", "--void-inner", action="store_true",
+                    help="delete punctuation inside words")
 parser.add_argument("-t", "--soft-truncate-newlines", action="store_true",
                     help="newlines at the end of lines are removed")
 parser.add_argument("-T", "--hard-truncate-newlines", action="store_true",
@@ -112,9 +116,9 @@ parser.add_argument("-P", "--pure-mode", action="store_true",
                     help="turns on pure filter mode, meaning no words will "
                         "be rearranged, but selectively filtered out")
 parser.add_argument("-S", "--filter-same", action="store_true",
-                    help="rearranges/filters only words found in source")
+                    help="keeps/filters only words found in source")
 parser.add_argument("-D", "--filter-different", action="store_true",
-                    help="rearranges/filters only words not found in source")
+                    help="keeps/filters only words not found in source")
 parser.add_argument("-L", "--compare-lower", action="store_true",
                     help="filter file comparisons ignore case")
 parser.add_argument("-F", "--filter-source", action="store_true",
@@ -163,7 +167,8 @@ def get_command():
     cmd = vars(parser.parse_args())
 
     defaults = ["first_letter", "case_sensitive", "compare_case",
-                "length_check", "usage_limited", "preserve_punctuation"]
+                "length_check", "limited_usage", "preserve_punctuation",
+                "get_different"]
     if cmd["default"]:
         for arg in defaults:
             cmd[arg] = True
@@ -240,36 +245,43 @@ def validate_command(cmd):
         msgs.append("NOTICE: Using -c does nothing without -l.")
 
     # [module] -b (without -u)
-    if cmd["block_shuffle"] and not cmd["usage_limited"]:
+    if cmd["block_shuffle"] and not cmd["limited_usage"]:
         msgs.append("NOTICE: Using -b does nothing without -u.")
 
     # [module] -m -u, -m -r, -m -e, or any combination
-    if (cmd["map_words"] and (cmd["usage_limited"] or 
+    if (cmd["map_words"] and (cmd["limited_usage"] or 
             cmd["relative_usage"] or cmd["equal_weighting"])):
         msgs.append("WARNING: -m overrides -u, -r, and -e, but you used "
                     "two of them.")
     # [module] -u -e, -r -e, or -u -r -e
     elif (cmd["equal_weighting"] and 
-            (cmd["usage_limited"] or cmd["relative_usage"])):
+            (cmd["limited_usage"] or cmd["relative_usage"])):
         msgs.append("WARNING: -e overrides -u and -r, but you used two "
                     "of them.")
     # [module] -u -r
-    elif cmd["usage_limited"] and cmd["relative_usage"]:
+    elif cmd["limited_usage"] and cmd["relative_usage"]:
         msgs.append("WARNING: -r overrides -u, but you used both.")
     # [module] (without -u, -r, -e, or -m, and not -I or -P)
-    elif (not (cmd["usage_limited"] or cmd["relative_usage"] or 
+    elif (not (cmd["limited_usage"] or cmd["relative_usage"] or 
             cmd["equal_weighting"] or cmd["map_words"]) and
             not (cmd["inspection_mode"] or cmd["pure_mode"])):
         msgs.append("NOTICE: Falling back on relative usage mode, since "
                     "none of -u, -r, -e, or -m were used.")
         cmd["relative_usage"] = True
 
+    # [module] -m -g
+    if cmd["map_words"] and cmd["get_different"]:
+        print("NOTICE: -g is implied by -m, but you used both.")
+
+    # [module] -p -v
+    if (cmd["preserve_punctuation"] and cmd["void_outer"]):
+        msgs.append("NOTICE: You used -p and -v, but -v overrides -p.")
     # [module] -t -T
     if cmd["soft_truncate_newlines"] and cmd["hard_truncate_newlines"]:
         msgs.append("NOTICE: You used both -t and -T, but -T implies -t.")
 
     # [module] -s source.txt -u
-    if (cmd["source"] and cmd["usage_limited"] and
+    if (cmd["source"] and cmd["limited_usage"] and
             cmd["input"] != cmd["source"]):
         msgs.append("WARNING: You are using a custom source with usage "
                     "limiting on, so the output might be truncated.")
@@ -287,29 +299,34 @@ def validate_command(cmd):
     # [module] -I -S or -D (without -F)
     if (cmd["inspection_mode"] and not cmd["filter_source"] and
             (cmd["filter_same"] or cmd["filter_different"])):
-        msgs.append("WARNING: -I with -S or -D requires the -F flag.")
+        msgs.append("NOTICE: -I with -S or -D requires the -F flag.")
 
     # [module] -s "..." -P
     if cmd["pure_mode"] and cmd["source"]:
-        msgs.append("WARNING: You defined a source, but with -P the source "
+        msgs.append("NOTICE: You defined a source, but with -P the source "
                     "will not be used for anything.")
+
     # [module] -I -P
     if cmd["inspection_mode"] and cmd["pure_mode"]:
         msgs.append("WARNING: -P should not be used with -I. Results are "
                     "undefined and may be undesired.")
     # [module] -K -P
-    if cmd["keep_mode"] and cmd["pure_mode"]:
+    elif cmd["keep_mode"] and cmd["pure_mode"]:
         msgs.append("WARNING: Filter modes -K and -P are oppositional, "
                     "but you used both. Results are undefined.")
+    # [module] -I -K
+    elif cmd["inspection_mode"] and cmd["keep_mode"]:
+        msgs.append("WARNING: -K should not be used with -I. Results are "
+                    "undefined and may be undesired.")
+
     # [module] -S -D
     if cmd["filter_same"] and cmd["filter_different"]:
         msgs.append("WARNING: Filters -S and -D are oppositional, "
                     "but you used both. Results are undefined.")
-    # WHY DOES THIS YELL SO MUCH
     # MAKE SURE K P S D m WORK!!!!
     # [module] -S -D (without -I, -K, or -P)
-    if (cmd["filter_same"] or cmd["filter_different"] and
-            not (cmd["inspection_mode"] or cmd["keep_mode"] or 
+    if ((cmd["filter_same"] or cmd["filter_different"]) and
+            not (cmd["inspection_mode"] or cmd["keep_mode"] or
             cmd["pure_mode"])):
         print(cmd["keep_mode"])
         msgs.append("WARNING: You called a filter, -S or -D, but without "
