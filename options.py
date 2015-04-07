@@ -53,12 +53,18 @@ parser.add_argument("-r", "--relative-usage", action="store_true",
 parser.add_argument("-e", "--equal-weighting", action="store_true",
                     help="forces equal weighting of every word, "
                         "but conflicts with and overrides -u and -r")
-parser.add_argument("-m", "--map-words", action="store_true",
+parser.add_argument("-M", "--map-words", action="store_true",
                     help="maps each word to a unique replacement, and "
                         "replaces every instance with that instead of "
                         "pure re-arranging, and overrides -u, -r, and -e")
 parser.add_argument("-g", "--get-different", action="store_true",
                     help="tries to get different words for replacement")
+parser.add_argument("-G", "--get-attempts", type=int, default=10,
+                    help="specify number of times to try to get different "
+                        "replacements, defaults to 10, and can "
+                        "exponentially increase computing time")
+parser.add_argument("-a", "--alphabetical-sort", action="store_true",
+                    help="sorts internal storage alphabetically")
 parser.add_argument("-R", "--random-seed", type=int, default=-1,
                     help="seeds random with given number")
 
@@ -88,6 +94,12 @@ parser.add_argument("-f", "--filter", type=str, default=None,
                     help="define an existing filter file to compare "
                         "against for selectively acting on words, and "
                         "is only required for filter modes")
+parser.add_argument("-m", "--word-map", type=str, default=None,
+                    help="define a pre-written word map file arranged where "
+                        "each line is a two word pair (seperated by a space) "
+                        "denoting to replace all instances of the first with "
+                        "the second word, ie \"dog cat\" replaces all "
+                        "instances of \"dog\" with \"cat\"")
 parser.add_argument("-o", "--output", type=str, default=sys.stdout,
                     help="define an output file instead of falling back on "
                         "standard output")
@@ -107,6 +119,12 @@ parser.add_argument("-Q", "--frequency-percent", action="store_true",
 parser.add_argument("-A", "--decimal-accuracy", type=int, default=2,
                     help="defines number of decimals to use for -Q, "
                         "defaults to 2")
+parser.add_argument("-x", "--count-minimum", type=int, default=-1,
+                    help="define minimum number of occurences for word "
+                        "information to be displayed")
+parser.add_argument("-X", "--percent-minimum", type=int, default=-1,
+                    help="define minimum frequency percent for word "
+                        "information to be displayed, with a max of 100")
 
 # filter mode, filters, filter organization
 parser.add_argument("-K", "--keep-mode", action="store_true",
@@ -166,9 +184,8 @@ def get_command():
 
     cmd = vars(parser.parse_args())
 
-    defaults = ["first_letter", "case_sensitive", "compare_case",
-                "length_check", "limited_usage", "preserve_punctuation",
-                "get_different"]
+    defaults = ["compare_case", "first_letter", "case_sensitive",
+                "length_check", "limited_usage", "preserve_punctuation"]
     if cmd["default"]:
         for arg in defaults:
             cmd[arg] = True
@@ -178,7 +195,7 @@ def get_command():
     msgs = validate_files(cmd)
     print_msgs(cmd, msgs)
 
-    for fType in ("input", "source", "filter"):
+    for fType in ("input", "source", "filter", "word_map"):
         if not isinstance(cmd[fType], file):
             cmd[fType] = open_file(fType, cmd[fType], cmd["output"])
 
@@ -197,7 +214,7 @@ def validate_files(cmd):
         cmd["source"] = cmd["input"]
         msgs.append("NOTICE: source will be the same as input.")
 
-    # [module] -f"..." (without -S or -D)
+    # [module] -f "..." (without -S or -D)
     if cmd["filter"]:
         if not (cmd["filter_same"] or cmd["filter_different"]):
             msgs.append("WARNING: A filter file does nothing without using "
@@ -213,6 +230,8 @@ def validate_files(cmd):
             sys.exit("ERROR: You can't use a filter, -S or -D, without a "
                     "filter file, and it can't be source as it is the "
                     "same as input.")
+
+    # [module] -m "..." (without -M)
 
     # check output file settings, and try to open it
     query = "%s already exists. Overwrite? Y/N\n"
@@ -248,10 +267,10 @@ def validate_command(cmd):
     if cmd["block_shuffle"] and not cmd["limited_usage"]:
         msgs.append("NOTICE: Using -b does nothing without -u.")
 
-    # [module] -m -u, -m -r, -m -e, or any combination
+    # [module] -M -u, -M -r, -M -e, or any combination
     if (cmd["map_words"] and (cmd["limited_usage"] or 
             cmd["relative_usage"] or cmd["equal_weighting"])):
-        msgs.append("WARNING: -m overrides -u, -r, and -e, but you used "
+        msgs.append("WARNING: -M overrides -u, -r, and -e, but you used "
                     "two of them.")
     # [module] -u -e, -r -e, or -u -r -e
     elif (cmd["equal_weighting"] and 
@@ -261,17 +280,22 @@ def validate_command(cmd):
     # [module] -u -r
     elif cmd["limited_usage"] and cmd["relative_usage"]:
         msgs.append("WARNING: -r overrides -u, but you used both.")
-    # [module] (without -u, -r, -e, or -m, and not -I or -P)
+    # [module] (without -u, -r, -e, -M, or -a, and not -I or -P)
     elif (not (cmd["limited_usage"] or cmd["relative_usage"] or 
-            cmd["equal_weighting"] or cmd["map_words"]) and
+            cmd["equal_weighting"] or cmd["map_words"] or
+            cmd["alphabetical_sort"]) and
             not (cmd["inspection_mode"] or cmd["pure_mode"])):
         msgs.append("NOTICE: Falling back on relative usage mode, since "
-                    "none of -u, -r, -e, or -m were used.")
+                    "none of -u, -r, -e, -M, or -a were used.")
         cmd["relative_usage"] = True
 
     # [module] -m -g
     if cmd["map_words"] and cmd["get_different"]:
-        print("NOTICE: -g is implied by -m, but you used both.")
+        msgs.append("NOTICE: -g is implied by -m, but you used both.")
+    # [module] -G (without -m or -g)
+    if (cmd["get_attempts"] != 10 and
+            not (cmd["map_words"] or cmd["get_different"])):
+        msgs.append("NOTICE: -G does nothing without -g or -m.")
 
     # [module] -p -v
     if (cmd["preserve_punctuation"] and cmd["void_outer"]):
@@ -300,6 +324,10 @@ def validate_command(cmd):
     if (cmd["inspection_mode"] and not cmd["filter_source"] and
             (cmd["filter_same"] or cmd["filter_different"])):
         msgs.append("NOTICE: -I with -S or -D requires the -F flag.")
+    # [module] -X [x] (where x is >100)
+    if cmd["percent_minimum"] > 100:
+        msg.append("WARNING: -X was defined with ")
+
 
     # [module] -s "..." -P
     if cmd["pure_mode"] and cmd["source"]:

@@ -2,10 +2,11 @@
 
 """Re-write a text stream based on word topology"""
 
-from __future__ import print_function
+from __future__ import print_function#, unicode_literals
 
 import random
 import options
+import time
 
 
 def tokenizer(f):
@@ -133,12 +134,15 @@ def sort_dictionary(cmd, dictionary):
 
     uniqueOnly = False
     shuffle = False
+    alphabetical = cmd["alphabetical_sort"]
 
-    if (cmd["pure_mode"] and (cmd["filter_same"] or cmd["filter_different"]) or
-            cmd["equal_weighting"] or cmd["map_words"]):
+    if (cmd["equal_weighting"] or cmd["map_words"] or
+            cmd["pure_mode"] and 
+            (cmd["filter_same"] or cmd["filter_different"])):
         uniqueOnly = True
     if cmd["limited_usage"] and not cmd["block_shuffle"]:
         shuffle = True
+
 
     for case in dictionary:
         for letter in dictionary[case]:
@@ -147,8 +151,11 @@ def sort_dictionary(cmd, dictionary):
                 if uniqueOnly:
                     wordList = list(set(wordList))
                 # randomizes words pulled later
-                elif shuffle:
+                if shuffle:
                     random.shuffle(wordList)
+                if alphabetical:
+                    wordList = sorted(wordList, key=str.lower)
+                    wordList.reverse()
                 dictionary[case][letter][length] = wordList
 
 
@@ -157,13 +164,16 @@ def check_filter(cmd, filterList, word):
     Check a word against a filter list and filter type
     Return true if word should be filtered, false otherwise
     """
+    if not cmd["filter_same"] or cmd["filter_different"]:
+        return False
     if cmd["compare_lower"]:
         word = word.lower()
     found = word in filterList
     if ((cmd["filter_same"] and found) or
         (cmd["filter_different"] and not found)):
         return True
-    return False
+    else:
+        return False
 
 
 def get_filter_list(cmd):
@@ -277,16 +287,18 @@ def find_replacement(cmd, dictionary, wordMap, word):
     wordList = get_word_list(cmd, dictionary, word)
     if not wordList:
         newWord = ""
+    elif cmd["alphabetical_sort"]:
+        newWord = wordList.pop()
     elif len(wordList) == 1:
         newWord = wordList[0]
     elif cmd["map_words"] or cmd["get_different"]:
         newWord = word
         attempts = 0
-        while newWord == word and attempts < len(wordList):
+        while newWord == word and attempts < cmd["get_attempts"]:
             roll = random.randint(0, len(wordList) - 1)
             newWord = wordList[roll]
             attempts += 1
-        if cmd["limited_usage"]:
+        if cmd["limited_usage"] or cmd["map_words"]:
             wordList.remove(newWord)
     elif cmd["equal_weighting"] or cmd["relative_usage"]:
         roll = random.randint(0, len(wordList) - 1)
@@ -294,11 +306,10 @@ def find_replacement(cmd, dictionary, wordMap, word):
     # falls back on limited usage
     else:
         # popping from the end means less memory usage
-        newWord.pop(wordList[-1])
+        newWord = wordList.pop()
 
     if cmd["map_words"]:
         # print(wordList)
-        wordList.remove(newWord)
         wordMap[word] = newWord
 
     return newWord
@@ -363,6 +374,7 @@ def generate_text(cmd, dictionary, filterList):
 
 def main():
     """Run the program"""
+    start = time.time()
 
     cmd = options.get_command()
     if cmd["random_seed"] != -1:
@@ -378,7 +390,8 @@ def main():
     else:
         generate_text(cmd, dictionary, filterList)
 
-    for f in ("input", "source", "output"):
-        cmd[f].close()
+    for f in ("input", "source", "filter", "output"):
+        if type(cmd[f]) == file:
+            cmd[f].close()
 
 main()
