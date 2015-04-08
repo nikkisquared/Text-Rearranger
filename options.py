@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser(description=
     "another file, then writes it back in a random order. Has various "
     "controls to filter output to be topologically similar.")
 
-# supress warnings and notices
+# settings for running the program
 parser.add_argument("-w", "--warning-level", type=int,
                     choices=[0, 1, 2, 3], default=2,
                     help="set level of warnings (defaults to 2):\n"
@@ -21,11 +21,13 @@ parser.add_argument("-w", "--warning-level", type=int,
                     "2 - show warnings and notices\n3 - show notices only")
 parser.add_argument("-E", "--explode-on-warning", action="store_true",
                     help="program will now crash on warnings")
-
-# applies optimal settings
 parser.add_argument("-d", "--default", action="store_true",
                     help="uses default (optimal) settings, identical to "
                             "running the program with -Clcnupg")
+parser.add_argument("-H", "--halt-rearranger", action="store_true",
+                    help="halts rearranger from running, so text can only "
+                        "be manipulated by non-arrangement based ways, "
+                        "such as using word maps")
 
 # layers to sort words on
 parser.add_argument("-C", "--compare-case", action="store_true",
@@ -96,10 +98,10 @@ parser.add_argument("-f", "--filter", type=str, default=None,
                         "is only required for filter modes")
 parser.add_argument("-m", "--word-map", type=str, default=None,
                     help="define a pre-written word map file arranged where "
-                        "each line is a two word pair (seperated by a space) "
-                        "denoting to replace all instances of the first with "
-                        "the second word, ie \"dog cat\" replaces all "
-                        "instances of \"dog\" with \"cat\"")
+                        "each line is a word to replace followed by a space "
+                        "and the word or phrase to replace all instances of "
+                        "the word with, \"cat dogs rule\" replaces all "
+                        "instances of \"cat\" with \"dogs rule\"")
 parser.add_argument("-o", "--output", type=str, default=sys.stdout,
                     help="define an output file instead of falling back on "
                         "standard output")
@@ -238,7 +240,15 @@ def validate_files(cmd):
                     "filter file, and it can't be source as it is the "
                     "same as input.")
 
-    # [module] -m "..." (without -M)
+    if cmd["word_map"]:
+        # [module] -m (without -M)
+        if not cmd["map_words"]:
+            msgs.append("NOTICE: Using given word map file %s." % 
+                cmd["word_map"])
+        # [module] -m -M
+        else:
+            msgs.append("NOTICE: Word map will be initialized with %s." % 
+                cmd["word_map"])
 
     # check output file settings, and try to open it
     query = "%s already exists. Overwrite? Y/N\n"

@@ -9,6 +9,7 @@ import options
 import copy
 import cProfile
 
+
 def tokenizer(f):
     """Iterator that yields every word from a given open file"""
     for line in f:
@@ -16,12 +17,15 @@ def tokenizer(f):
             yield word
 
 
-def iter_dictionary(dictionary):
-    """Iterator that yields every list of words from a given dictionary"""
-    for case in dictionary:
-        for letter in dictionary[case]:
-            for length in dictionary[case][letter]:
-                yield dictionary[case][letter][length]
+def fill_word_map(cmd, wordMap):
+    """Fill a given wordMap with contents from a wordMap file"""
+    for line in cmd["word_map"]:
+        line = line.strip()
+        words = line.split(" ")
+        try:
+            wordMap[words[0]] = words[1]
+        except Exception:
+            print("ERROR: wrong word map file syntax at line \"%s\"" % line)
 
 
 def get_metadata(cmd, word):
@@ -359,26 +363,28 @@ def get_new_word(cmd, dictionary, filterList, wordMap, word):
     passedFilter = check_filter(cmd, filterList, word)
     result = wordMap.get(word)
     if cmd["pure_mode"] and not passedFilter:
-        # print("pure filter failure: %s" % word)
         newWord = ""
+        # print("pure filter failure: %s" % word)
     elif passedFilter:
-        # print("filter success: %s" % word)
         newWord = word
+        # print("filter success: %s" % word)
     elif result:
-        # print("word map success: %s from %s" % (result, word))
         newWord = result
+        # print("word map success: %s from %s" % (result, word))
+    elif cmd["halt_rearranger"]:
+        newWord = word
+        # print("rearranger halted: %s" % word)
     else:
         newWord = find_replacement(cmd, dictionary, wordMap, word)
         # print("replaced: %s with %s" % (word, newWord))
     return newWord
 
 
-def generate_text(cmd, dictionary, filterList):
+def generate_text(cmd, dictionary, filterList, wordMap):
     """Rearrange or filter the input text to create a new output"""
 
     output = []
     line = ""
-    wordMap = {}
     for word in tokenizer(cmd["input"]):
 
         if word == "\n":
@@ -407,7 +413,7 @@ def generate_text(cmd, dictionary, filterList):
     for line in output:
         cmd["output"].write(line)
     # ensures one newline at the end of the output
-    if not cmd["hard_truncate_newlines"] and (line and line[-1] == "\n"):
+    if not cmd["hard_truncate_newlines"] and (line and line[-1] != "\n"):
         cmd["output"].write("\n")
 
 
@@ -418,6 +424,9 @@ def main():
     if cmd["random_seed"] != -1:
         random.seed(cmd["random_seed"])
 
+    wordMap = {}
+    if cmd["word_map"]:
+        fill_word_map(cmd, wordMap)
     filterList = get_filter_list(cmd)
     dictionary = {}
     occurences, wordCount = fill_dictionary(cmd, dictionary, filterList)
@@ -426,7 +435,7 @@ def main():
     if cmd["inspection_mode"]:
         generate_analysis(cmd, dictionary, occurences, wordCount)
     else:
-        generate_text(cmd, dictionary, filterList)
+        generate_text(cmd, dictionary, filterList, wordMap)
 
     for f in ("input", "source", "filter", "word_map", "output"):
         if type(cmd[f]) == file:
