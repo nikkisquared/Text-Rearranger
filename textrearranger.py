@@ -7,6 +7,7 @@ from __future__ import print_function#, unicode_literals
 import random
 import options
 import copy
+import cProfile
 
 def tokenizer(f):
     """Iterator that yields every word from a given open file"""
@@ -272,7 +273,9 @@ def limit_dictionary(cmd, dictionary, wordData):
                     count = wordData[word]["count"]
                     percent = wordData[word]["percent"]
                     if (count >= cmd["count_minimum"] and
-                            percent >= cmd["percent_minimum"]):
+                            count <= cmd["count_maximum"] and
+                            percent >= cmd["percent_minimum"] and
+                            percent <= cmd["percent_maximum"]):
                         newWordList.append(word)
                     dictionary[case][letter][length] = newWordList
 
@@ -425,7 +428,7 @@ def main():
     else:
         generate_text(cmd, dictionary, filterList)
 
-    for f in ("input", "source", "filter", "output"):
+    for f in ("input", "source", "filter", "word_map", "output"):
         if type(cmd[f]) == file:
             cmd[f].close()
 

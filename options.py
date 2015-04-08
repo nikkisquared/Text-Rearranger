@@ -125,6 +125,13 @@ parser.add_argument("-x", "--count-minimum", type=int, default=0,
 parser.add_argument("-X", "--percent-minimum", type=float, default=0,
                     help="define minimum frequency percent for word "
                         "information to be displayed, with a max of 100")
+parser.add_argument("-y", "--count-maximum", type=int, default=sys.maxint,
+                    help="define maximum number of occurences for word "
+                        "information to be displayed")
+parser.add_argument("-Y", "--percent-maximum", type=float,
+                    default=float("inf"),
+                    help="define maximum frequency percent for word "
+                        "information to be displayed, with a max of 100")
 
 # filter mode, filters, filter organization
 parser.add_argument("-K", "--keep-mode", action="store_true",
