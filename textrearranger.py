@@ -23,13 +23,16 @@ def fill_word_map(cmd, wordMap):
         line = line.strip()
         words = line.split(" ")
         try:
-            wordMap[words[0]] = words[1]
+            wordMap[words[0]] = " ".join(map(str, words[1:]))
         except Exception:
             print("ERROR: wrong word map file syntax at line \"%s\"" % line)
 
 
 def get_metadata(cmd, word):
     """Parse out metadata for a word, based on command settings"""
+
+    if cmd["compare_lower"]:
+        word = word.lower()
 
     if not cmd["compare_case"]:
         case = ""

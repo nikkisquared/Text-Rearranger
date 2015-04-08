@@ -40,6 +40,8 @@ parser.add_argument("-c", "--case-sensitive", action="store_true",
                     help="makes -f case-sensitive, does nothing without -f")
 parser.add_argument("-n", "--length-check", action="store_true",
                     help="requires length of a replacement word to be equal")
+parser.add_argument("-L", "--compare-lower", action="store_true",
+                    help="filter file comparisons ignore case")
 
 # algorithms for determining word re-arrangement
 parser.add_argument("-u", "--limited-usage", action="store_true",
@@ -124,16 +126,16 @@ parser.add_argument("-A", "--decimal-accuracy", type=int, default=2,
 parser.add_argument("-x", "--count-minimum", type=int, default=0,
                     help="define minimum number of occurences for word "
                         "information to be displayed")
-parser.add_argument("-X", "--percent-minimum", type=float, default=0,
-                    help="define minimum frequency percent for word "
-                        "information to be displayed, with a max of 100")
 parser.add_argument("-y", "--count-maximum", type=int, default=sys.maxint,
                     help="define maximum number of occurences for word "
                         "information to be displayed")
+parser.add_argument("-X", "--percent-minimum", type=float, default=0,
+                    help="define minimum frequency percent for word info"
+                        "to be displayed, with an ideal max of 100")
 parser.add_argument("-Y", "--percent-maximum", type=float,
                     default=float("inf"),
-                    help="define maximum frequency percent for word "
-                        "information to be displayed, with a max of 100")
+                    help="define maximum frequency percent for word info"
+                        "to be displayed, with an ideal max of 100")
 
 # filter mode, filters, filter organization
 parser.add_argument("-K", "--keep-mode", action="store_true",
@@ -146,8 +148,6 @@ parser.add_argument("-S", "--filter-same", action="store_true",
                     help="keeps/filters only words found in source")
 parser.add_argument("-D", "--filter-different", action="store_true",
                     help="keeps/filters only words not found in source")
-parser.add_argument("-L", "--compare-lower", action="store_true",
-                    help="filter file comparisons ignore case")
 parser.add_argument("-F", "--filter-source", action="store_true",
                     help="filters the source files' internal storage")
 
@@ -279,6 +279,13 @@ def validate_command(cmd):
     # [module] -c (without -l)
     if cmd["case_sensitive"] and not cmd["first_letter"]:
         msgs.append("NOTICE: Using -c does nothing without -l.")
+    if cmd["compare_lower"]:
+        # [module] -c -C
+        if cmd["compare_case"]:
+            msgs.append("NOTICE: -C does nothing with -L on.")
+        # [module] -c -L
+        if cmd["case_sensitive"]:
+            msgs.append("NOTICE: -c does nothing with -L on.")
 
     # [module] -b (without -u)
     if cmd["block_shuffle"] and not cmd["limited_usage"]:
