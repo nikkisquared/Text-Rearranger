@@ -24,6 +24,26 @@ def check_speed(cmd):
         time.sleep(cmd["slow_speed"])
 
 
+def jabberwocky(first, second):
+    """Jabberwocky two given words together"""
+    if first == second:
+        return first
+    nFirst = 0
+    nSecond = 0
+    newWord = ""
+    # gives precedence to starting with the second word
+    do = (len(second) + 1) % 4
+    while nFirst < len(first):
+        if do in (0, 1):
+            newWord += first[nFirst]
+        elif do in (2, 3):
+            newWord += second[nSecond]
+        nFirst += 1
+        nSecond = (nSecond + 1) % len(second)
+        do = (do + 1) % 4
+    return newWord
+
+
 def fill_word_map(cmd, wordMap):
     """Fill a given wordMap with contents from a wordMap file"""
     for line in cmd["word_map"]:
@@ -32,7 +52,7 @@ def fill_word_map(cmd, wordMap):
         try:
             wordMap[words[0]] = " ".join(map(str, words[1:]))
         except Exception:
-            print("ERROR: wrong word map file syntax at line \"%s\"" % line)
+            print("ISSUE: Wrong word map file syntax at line \"%s\"" % line)
 
 
 def get_metadata(cmd, word):
@@ -246,7 +266,7 @@ def search_dictionary(dictionary, level, sort, wordData, indent=0, order=None):
 
 def create_word_data(cmd, occurences, wordCount):
     """
-    Creates formatted output for 
+    Return wordData, amalgamating word statistics and info strings
     """
 
     wordData = {}
@@ -420,6 +440,10 @@ def generate_text(cmd, dictionary, filterList, wordMap):
         line += puncBefore
         if word:
             newWord = get_new_word(cmd, dictionary, filterList, wordMap, word)
+            if (cmd["jabberwocky"] and 
+                    random.randint(0, 99) < cmd["jabberwocky_chance"]):
+                newWord = jabberwocky(word, newWord)
+                # print("jabbered! %s" % newWord)
             line += newWord
         line += puncAfter
         if line and line[-1] != "\n" and not cmd["truncate_whitespace"]:

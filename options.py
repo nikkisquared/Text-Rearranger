@@ -24,10 +24,6 @@ parser.add_argument("-E", "--explode-on-warning", action="store_true",
 parser.add_argument("-d", "--default", action="store_true",
                     help="uses default (optimal) settings, identical to "
                             "running the program with -Clcnupg")
-parser.add_argument("-H", "--halt-rearranger", action="store_true",
-                    help="halts rearranger from running, so text can only "
-                        "be manipulated by non-arrangement based ways, "
-                        "such as using word maps")
 parser.add_argument("-z", "--slow-output", action="store_true",
                     help="slows output to print one line per interval, "
                         "defaults to 1 second")
@@ -52,30 +48,40 @@ parser.add_argument("-L", "--compare-lower", action="store_true",
 parser.add_argument("-u", "--limited-usage", action="store_true",
                     help="usage of each word is limited to the number of "
                         "occurrences in the original text")
+parser.add_argument("-r", "--relative-usage", action="store_true",
+                    help="word usage will be based on relative frequency, "
+                        "but overrides -u, and also falls back on this if "
+                        "none of -u, -r, -e, -a, or -M are used")
+parser.add_argument("-e", "--equal-weighting", action="store_true",
+                    help="forces equal weighting of every word, "
+                        "but overrides -u and -r")
+parser.add_argument("-M", "--map-words", action="store_true",
+                    help="maps each word to a unique replacement, and "
+                        "replaces every instance with that instead of "
+                        "pure re-arranging, and overrides -u, -r, and -e")
+parser.add_argument("-a", "--alphabetical-sort", action="store_true",
+                    help="sorts internal storage alphabetically")
+
+# add-ons to algorithsm
 parser.add_argument("-U", "--force-limited-usage", action="store_true",
                     help="force limited usage with any non -u setting")
 parser.add_argument("-b", "--block-shuffle", action="store_true",
                     help="replacement words will not be shuffled, "
                         "but only works with -u")
-parser.add_argument("-r", "--relative-usage", action="store_true",
-                    help="word usage will be based on relative frequency, "
-                        "but conflicts with and overrides -u, and also falls "
-                        "back on this if none of -u, -r, or -e are used")
-parser.add_argument("-e", "--equal-weighting", action="store_true",
-                    help="forces equal weighting of every word, "
-                        "but conflicts with and overrides -u and -r")
-parser.add_argument("-a", "--alphabetical-sort", action="store_true",
-                    help="sorts internal storage alphabetically")
-parser.add_argument("-M", "--map-words", action="store_true",
-                    help="maps each word to a unique replacement, and "
-                        "replaces every instance with that instead of "
-                        "pure re-arranging, and overrides -u, -r, and -e")
 parser.add_argument("-g", "--get-different", action="store_true",
                     help="tries to get different words for replacement")
 parser.add_argument("-G", "--get-attempts", type=int, default=10,
                     help="specify number of times to try to get different "
                         "replacements, defaults to 10, and can "
                         "exponentially increase computing time")
+parser.add_argument("-H", "--halt-rearranger", action="store_true",
+                    help="halts rearranger from running, so text can only "
+                        "be manipulated by non-arrangement based ways, "
+                        "such as using word maps")
+parser.add_argument("-J", "--jabberwocky", action="store_true",
+                    help="jabberwockies words")
+parser.add_argument("-j", "--jabberwocky-chance", type=int, default=25,
+                    help="increase the chance of a word being jabberwockied")
 parser.add_argument("-R", "--random-seed", type=int, default=-1,
                     help="seeds random with given number")
 
@@ -140,11 +146,11 @@ parser.add_argument("-y", "--count-maximum", type=int, default=sys.maxint,
                         "information to be displayed")
 parser.add_argument("-X", "--percent-minimum", type=float, default=0,
                     help="define minimum frequency percent for word info"
-                        "to be displayed, with an ideal max of 100")
+                        "to be displayed, with an ideal max of 100%")
 parser.add_argument("-Y", "--percent-maximum", type=float,
                     default=float("inf"),
                     help="define maximum frequency percent for word info"
-                        "to be displayed, with an ideal max of 100")
+                        "to be displayed, with an ideal max of 100%")
 
 # filter mode, filters, filter organization
 parser.add_argument("-K", "--keep-mode", action="store_true",
@@ -289,9 +295,6 @@ def validate_command(cmd):
     if cmd["explode_on_warning"] and (cmd["warning_level"] in (0, 3)):
         msgs.append("WARNING: Program set to crash on warnings, but warnings "
                     "have been hidden. Only one option should be set.")
-    # -H
-    if cmd["halt_rearranger"]:
-        msgs.append("NOTICE: No text will be re-arranged since you called -H.")
     # -Z [x] (without -z)
     if cmd["slow_speed"] != 1.0 and not cmd["slow_output"]:
         msgs.append("NOTICE: Defining -Z does nothing without calling -z.")
@@ -307,18 +310,16 @@ def validate_command(cmd):
         if cmd["case_sensitive"] and cmd["first_letter"]:
             msgs.append("NOTICE: -c does nothing with -L on.")
 
-    # -b (without -u)
-    if cmd["block_shuffle"] and not cmd["limited_usage"]:
-        msgs.append("NOTICE: Using -b does nothing without -u.")
-
     # -M -u, -M -r, -M -e, or any combination
     if (cmd["map_words"] and (cmd["limited_usage"] or 
             cmd["relative_usage"] or cmd["equal_weighting"])):
         msgs.append("WARNING: -M overrides -u, -r, and -e, but you used "
                     "two of them.")
-    # -u -e
-    elif cmd["equal_weighting"] and cmd["limited_usage"]:
-        msgs.append("WARNING: -e overrides -u and, but you used both.")
+    # -u -e, -r -e, or -u -r -e
+    elif (cmd["equal_weighting"] and 
+            (cmd["limited_usage"] or cmd["relative_usage"])):
+        msgs.append("WARNING: -e overrides both -u and -r, but you used two "
+                    "of them.")
     # -u -r
     elif cmd["limited_usage"] and cmd["relative_usage"]:
         msgs.append("WARNING: -r overrides -u, but you used both.")
@@ -331,6 +332,8 @@ def validate_command(cmd):
         msgs.append("NOTICE: Falling back on relative usage mode, since "
                     "none of -u, -r, -e, -M, or -a were used.")
         cmd["relative_usage"] = True
+
+
     if cmd["force_limited_usage"]:
         # -u -U
         if cmd["limited_usage"]:
@@ -338,6 +341,9 @@ def validate_command(cmd):
         # -U
         else:
             msgs.append("NOTICE: Because of -U, output may be truncated.")
+    # -b (without -u)
+    if cmd["block_shuffle"] and not cmd["limited_usage"]:
+        msgs.append("NOTICE: Using -b does nothing without -u.")
 
     # -M -g
     if cmd["map_words"] and cmd["get_different"]:
@@ -346,6 +352,18 @@ def validate_command(cmd):
     if (cmd["get_attempts"] != 10 and
             not (cmd["map_words"] or cmd["get_different"])):
         msgs.append("NOTICE: -G does nothing without -g or -M.")
+    # -H
+    if cmd["halt_rearranger"]:
+        msgs.append("NOTICE: No text will be re-arranged since you called -H.")
+    # -j [x] (without -J)
+    if cmd["jabberwocky_chance"] != 25 and not cmd["jabberwocky"]:
+        msgs.append("NOTICE: Defining -j without -J does nothing.")
+    # -j [x] (where x < 1)
+    elif cmd["jabberwocky_chance"] < 1:
+        msgs.append("WARNING: 0 or negative values for -j block -J.")
+    # -j [x] (where x > 100)
+    elif cmd["jabberwocky_chance"] > 100:
+        msgs.append("NOTICE: Defining -j over 100%% does nothing different.")
 
     # -p -v
     if (cmd["preserve_punctuation"] and cmd["void_outer"]):
@@ -387,13 +405,21 @@ def validate_command(cmd):
             cmd["percent_maximum"] != float("inf"))):
         msgs.append("NOTICE: You defined one or more of -x, -y, -X, and -Y "
                     "without calling -I, so they do nothing.")
+    # -x [x] or -y [x] (where x is < 0)
+    if cmd["count_minimum"] < 0 or cmd["count_maximum"] < 0:
+        msgs.append("WARNING: You defined -x and/or -y lower than 0, "
+                "meaning they will do nothing.")
     # -x [a] -y [b] (where b < a)
     if cmd["count_maximum"] < cmd["count_minimum"]:
-        msgs.append("WARNING: You defined -y lower than -x, meaning nothing "
-                    "will be output.")
+        msgs.append("WARNING: You defined -y lower than -x, meaning those "
+                    "settings will do nothing.")
+    # -X [x] or -Y [x] (where x is < 0)
+    if cmd["percent_minimum"] < 0 or cmd["percent_maximum"] < 0:
+        msgs.append("WARNING: You defined -Y lower than -X, meaning those "
+                    "settings will do nothing.")
     # -X [x] (where x is >100)
     if cmd["percent_minimum"] > 100:
-        msgs.append("WARNING: -X was defined with a value higher than 100, "
+        msgs.append("WARNING: -X was defined with a value higher than 100%%, "
                     "meaning nothing will show up for inspection.")
     # -X [a] -Y [b] (where b < a)
     elif cmd["percent_maximum"] < cmd["percent_minimum"]:
