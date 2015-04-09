@@ -93,6 +93,8 @@ parser.add_argument("-v", "--void-outer", action="store_true",
                     help="delete punctuation outside words")
 parser.add_argument("-V", "--void-inner", action="store_true",
                     help="delete punctuation inside words")
+parser.add_argument("-k", "--kick-chance", type=int, default=0,
+                    help="chance that a word will randomly get a newline")
 parser.add_argument("-t", "--soft-truncate-newlines", action="store_true",
                     help="newlines at the end of lines are removed")
 parser.add_argument("-T", "--hard-truncate-newlines", action="store_true",
@@ -368,7 +370,17 @@ def validate_command(cmd):
     # -p -v
     if (cmd["preserve_punctuation"] and cmd["void_outer"]):
         msgs.append("NOTICE: You used -p and -v, but -v overrides -p.")
+    # -k [x] (where x < 0)
+    if cmd["kick-chance"] < 0:
+        msgs.append("NOTICE: You defined -k less than 0, so it does nothing.")
+    # -k [x] (where x > 100)
+    elif cmd["kick-chance"] > 100:
+        msgs.append("NOTICE: Defining -k greater than 100 does nothing.")
     if cmd["hard_truncate_newlines"]:
+        # -k [x] -T
+        if cmd["kick-chance"]:
+            msgs.append("WARNING: You used both -T and -k, but -T overrides "
+                        "-k and stops it from doing anything.")
         # -t -T
         if cmd["soft_truncate_newlines"]:
             msgs.append("NOTICE: You used both -t and -T, but -T implies -t.")

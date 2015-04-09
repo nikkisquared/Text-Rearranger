@@ -446,7 +446,10 @@ def generate_text(cmd, dictionary, filterList, wordMap):
                 # print("jabbered! %s" % newWord)
             line += newWord
         line += puncAfter
-        if line and line[-1] != "\n" and not cmd["truncate_whitespace"]:
+        if (not cmd["hard_truncate_newlines"] and 
+                random.randint(0, 99) < cmd["kick_chance"]):
+            line += "\n"
+        elif line and line[-1] != "\n" and not cmd["truncate_whitespace"]:
             line += " "
         else:
             # remove trailing spaces
