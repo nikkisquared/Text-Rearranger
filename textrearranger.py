@@ -43,8 +43,7 @@ def get_metadata(cmd, word):
 
     if not cmd["compare_case"]:
         case = ""
-    elif (word.istitle() or (word[0].isupper() and
-            sum(1 for c in word if c.isupper()) == 1)):
+    elif word.istitle():
         case = "title"
     elif word.islower():
         case = "lower"
@@ -312,7 +311,7 @@ def generate_analysis(cmd, dictionary, occurences, wordCount):
     wordData = create_word_data(cmd, occurences, wordCount)
     limit_dictionary(cmd, dictionary, wordData)
 
-    order = ["mixed", "upper", "first", "lower", ""]
+    order = ["upper", "title", "lower", "mixed", ""]
     level = ["Case", "Letter", "Length"]
     sort = not cmd["block_inspection_sort"]
     output = search_dictionary(dictionary, level, sort, wordData, order=order)
@@ -329,6 +328,11 @@ def get_word_list(cmd, dictionary, word):
         if not wordList:
             return []
     return wordList
+
+
+def get_random_word(wordList):
+    """Get a random word from a given wordList"""
+    return wordList[random.randint(0, len(wordList) - 1)]
 
 
 def find_replacement(cmd, dictionary, wordMap, word):
@@ -349,14 +353,12 @@ def find_replacement(cmd, dictionary, wordMap, word):
         newWord = word
         attempts = 0
         while newWord == word and attempts < cmd["get_attempts"]:
-            roll = random.randint(0, len(wordList) - 1)
-            newWord = wordList[roll]
+            newWord = get_random_word(wordList)
             attempts += 1
         if cmd["limited_usage"] or cmd["map_words"]:
             wordList.remove(newWord)
     elif cmd["equal_weighting"] or cmd["relative_usage"]:
-        roll = random.randint(0, len(wordList) - 1)
-        newWord = wordList[roll]
+        newWord = get_random_word(wordList)
     # falls back on limited usage
     else:
         # popping from the end means less memory usage

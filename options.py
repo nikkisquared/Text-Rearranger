@@ -316,11 +316,9 @@ def validate_command(cmd):
             cmd["relative_usage"] or cmd["equal_weighting"])):
         msgs.append("WARNING: -M overrides -u, -r, and -e, but you used "
                     "two of them.")
-    # -u -e, -r -e, or -u -r -e
-    elif (cmd["equal_weighting"] and 
-            (cmd["limited_usage"] or cmd["relative_usage"])):
-        msgs.append("WARNING: -e overrides -u and -r, but you used two "
-                    "of them.")
+    # -u -e
+    elif cmd["equal_weighting"] and cmd["limited_usage"]:
+        msgs.append("WARNING: -e overrides -u and, but you used both.")
     # -u -r
     elif cmd["limited_usage"] and cmd["relative_usage"]:
         msgs.append("WARNING: -r overrides -u, but you used both.")
@@ -361,8 +359,8 @@ def validate_command(cmd):
             msgs.append("NOTICE: You used both -N and -T, but -T implies -N.")
 
     # -s source.txt -u
-    if (cmd["source"] and cmd["limited_usage"] and
-            cmd["input"] != cmd["source"]):
+    if (cmd["source"] and cmd["source"] != cmd["input"] and
+        (cmd["limited_usage"] or cmd["force_limited_usage"])):
         msgs.append("WARNING: You are using a custom source with usage "
                     "limiting on, so the output might be truncated.")
 
