@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser(description=
     "another file, then writes it back in a random order. Has various "
     "controls to filter output to be topologically similar.")
 
-# settings for running the program
+# arg handling settings
 parser.add_argument("-w", "--warning-level", type=int,
                     choices=[0, 1, 2, 3], default=2,
                     help="set level of warnings (defaults to 2):\n"
@@ -21,14 +21,11 @@ parser.add_argument("-w", "--warning-level", type=int,
                     "2 - show warnings and notices\n3 - show notices only")
 parser.add_argument("-E", "--explode-on-warning", action="store_true",
                     help="program will now crash on warnings")
+
+# default options
 parser.add_argument("-d", "--default", action="store_true",
                     help="uses default (optimal) settings, identical to "
                             "running the program with -Clcnupg")
-parser.add_argument("-z", "--slow-output", action="store_true",
-                    help="slows output to print one line per interval, "
-                        "defaults to 1 second")
-parser.add_argument("-Z", "--slow-speed", type=float, default=1.0,
-                    help="change the wait interval for -z")
 
 # layers to sort words on
 parser.add_argument("-C", "--compare-case", action="store_true",
@@ -148,11 +145,11 @@ parser.add_argument("-y", "--count-maximum", type=int, default=sys.maxint,
                         "information to be displayed")
 parser.add_argument("-X", "--percent-minimum", type=float, default=0,
                     help="define minimum frequency percent for word info"
-                        "to be displayed, with an ideal max of 100%")
+                        "to be displayed, with an ideal max of 100%%")
 parser.add_argument("-Y", "--percent-maximum", type=float,
                     default=float("inf"),
                     help="define maximum frequency percent for word info"
-                        "to be displayed, with an ideal max of 100%")
+                        "to be displayed, with an ideal max of 100%%")
 
 # filter mode, filters, filter organization
 parser.add_argument("-K", "--keep-mode", action="store_true",
@@ -167,6 +164,13 @@ parser.add_argument("-D", "--filter-different", action="store_true",
                     help="keeps/filters only words not found in source")
 parser.add_argument("-F", "--filter-source", action="store_true",
                     help="filters the source files' internal storage")
+
+# slow mode
+parser.add_argument("-z", "--slow-output", action="store_true",
+                    help="slows output to print one line per interval, "
+                        "defaults to 1 second")
+parser.add_argument("-Z", "--slow-speed", type=float, default=1.0,
+                    help="change the wait interval for -z")
 
 
 def print_msgs(cmd, msgs):
@@ -371,14 +375,14 @@ def validate_command(cmd):
     if (cmd["preserve_punctuation"] and cmd["void_outer"]):
         msgs.append("NOTICE: You used -p and -v, but -v overrides -p.")
     # -k [x] (where x < 0)
-    if cmd["kick-chance"] < 0:
+    if cmd["kick_chance"] < 0:
         msgs.append("NOTICE: You defined -k less than 0, so it does nothing.")
     # -k [x] (where x > 100)
-    elif cmd["kick-chance"] > 100:
+    elif cmd["kick_chance"] > 100:
         msgs.append("NOTICE: Defining -k greater than 100 does nothing.")
     if cmd["hard_truncate_newlines"]:
         # -k [x] -T
-        if cmd["kick-chance"]:
+        if cmd["kick_chance"]:
             msgs.append("WARNING: You used both -T and -k, but -T overrides "
                         "-k and stops it from doing anything.")
         # -t -T
