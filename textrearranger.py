@@ -399,7 +399,11 @@ def generate_text(cmd, dictionary, filterList, wordMap):
     for word in tokenizer(cmd["input"]):
 
         if word == "\n":
-            if not cmd["hard_truncate_newlines"]:
+            if (not cmd["hard_truncate_newlines"] and
+                    not (cmd["truncate_multiple_newlines"] and
+                        len(output) >= 2 and
+                        output[-1][-1] == "\n" and
+                        output[-2][-1] == "\n" and)):
                 output.append("\n")
             continue
         if word == "":

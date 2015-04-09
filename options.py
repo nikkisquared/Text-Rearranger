@@ -89,6 +89,8 @@ parser.add_argument("-t", "--soft-truncate-newlines", action="store_true",
                     help="newlines at the end of lines are removed")
 parser.add_argument("-T", "--hard-truncate-newlines", action="store_true",
                     help="all newlines are removed completely")
+parser.add_argument("-N", "--truncate-multiple-newlines", action="store_true",
+                    help="multiple newlines will be truncated to single lines")
 parser.add_argument("-W", "--truncate-whitespace", action="store_true",
                     help="all whitespace between words will be removed")
 
@@ -340,9 +342,13 @@ def validate_command(cmd):
     # -p -v
     if (cmd["preserve_punctuation"] and cmd["void_outer"]):
         msgs.append("NOTICE: You used -p and -v, but -v overrides -p.")
-    # -t -T
-    if cmd["soft_truncate_newlines"] and cmd["hard_truncate_newlines"]:
-        msgs.append("NOTICE: You used both -t and -T, but -T implies -t.")
+    if cmd["hard_truncate_newlines"]:
+        # -t -T
+        if cmd["soft_truncate_newlines"]:
+            msgs.append("NOTICE: You used both -t and -T, but -T implies -t.")
+        # -N -T
+        if cmd["truncate_multiple_newlines"]:
+            msgs.append("NOTICE: You used both -N and -T, but -T implies -N.")
 
     # -s source.txt -u
     if (cmd["source"] and cmd["limited_usage"] and
