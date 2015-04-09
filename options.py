@@ -166,10 +166,10 @@ parser.add_argument("-F", "--filter-source", action="store_true",
                     help="filters the source files' internal storage")
 
 # slow mode
-parser.add_argument("-z", "--slow-output", action="store_true",
+parser.add_argument("-Z", "--slow-output", action="store_true",
                     help="slows output to print one line per interval, "
                         "defaults to 1 second")
-parser.add_argument("-Z", "--slow-speed", type=float, default=1.0,
+parser.add_argument("-z", "--slow-speed", type=float, default=1.0,
                     help="change the wait interval for -z")
 
 
@@ -301,9 +301,9 @@ def validate_command(cmd):
     if cmd["explode_on_warning"] and (cmd["warning_level"] in (0, 3)):
         msgs.append("WARNING: Program set to crash on warnings, but warnings "
                     "have been hidden. Only one option should be set.")
-    # -Z [x] (without -z)
+    # -z [x] (without -Z)
     if cmd["slow_speed"] != 1.0 and not cmd["slow_output"]:
-        msgs.append("NOTICE: Defining -Z does nothing without calling -z.")
+        msgs.append("NOTICE: Defining -z does nothing without calling -Z.")
 
     # -c (without -l)
     if cmd["case_sensitive"] and not cmd["first_letter"]:
