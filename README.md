@@ -21,14 +21,10 @@ API
 						  - show only warnings 2 - show warnings and notices 3 -
 						  show notices only
 	-E, --explode-on-warning
-	
+
 						  program will now crash on warnings
 	-d, --default         uses default (optimal) settings, identical to running
 						  the program with -Clcnupg
-	-z, --slow-output     slows output to print one line per interval, defaults
-						  to 1 second
-	-Z SLOW_SPEED, --slow-speed SLOW_SPEED
-						  change the wait interval for -z
 
 	-C, --compare-case    makes replacement words match case style, which mostly
 						  implies and overpowers -c
@@ -141,3 +137,8 @@ API
 	-D, --filter-different
 						  keeps/filters only words not found in source
 	-F, --filter-source   filters the source files' internal storage
+	
+	-z, --slow-output     slows output to print one line per interval, defaults
+						  to 1 second
+	-Z SLOW_SPEED, --slow-speed SLOW_SPEED
+						  change the wait interval for -z
