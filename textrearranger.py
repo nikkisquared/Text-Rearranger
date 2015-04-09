@@ -365,6 +365,9 @@ def find_replacement(cmd, dictionary, wordMap, word):
     if cmd["map_words"]:
         # print(wordList)
         wordMap[word] = newWord
+    elif (cmd["force_limited_usage"] and not cmd["limited_usage"] and
+            word in wordList):
+        wordList.remove(word)
 
     return newWord
 
@@ -403,7 +406,7 @@ def generate_text(cmd, dictionary, filterList, wordMap):
                     not (cmd["truncate_multiple_newlines"] and
                         len(output) >= 2 and
                         output[-1][-1] == "\n" and
-                        output[-2][-1] == "\n" and)):
+                        output[-2][-1] == "\n")):
                 output.append("\n")
             continue
         if word == "":

@@ -52,6 +52,8 @@ parser.add_argument("-L", "--compare-lower", action="store_true",
 parser.add_argument("-u", "--limited-usage", action="store_true",
                     help="usage of each word is limited to the number of "
                         "occurrences in the original text")
+parser.add_argument("-U", "--force-limited-usage", action="store_true",
+                    help="force limited usage with any non -u setting")
 parser.add_argument("-b", "--block-shuffle", action="store_true",
                     help="replacement words will not be shuffled, "
                         "but only works with -u")
@@ -322,14 +324,22 @@ def validate_command(cmd):
     # -u -r
     elif cmd["limited_usage"] and cmd["relative_usage"]:
         msgs.append("WARNING: -r overrides -u, but you used both.")
-    # (without -u, -r, -e, -M, or -a, and not -I or -P)
+    # (without -u, -r, -e, -M, or -a, and not -I, -P, or -K)
     elif (not (cmd["limited_usage"] or cmd["relative_usage"] or 
             cmd["equal_weighting"] or cmd["map_words"] or
             cmd["alphabetical_sort"]) and
-            not (cmd["inspection_mode"] or cmd["pure_mode"])):
+            not (cmd["inspection_mode"] or cmd["pure_mode"] or
+            cmd["keep_mode"])):
         msgs.append("NOTICE: Falling back on relative usage mode, since "
                     "none of -u, -r, -e, -M, or -a were used.")
         cmd["relative_usage"] = True
+    if cmd["force_limited_usage"]:
+        # -u -U
+        if cmd["limited_usage"]:
+            msgs.append("NOTICE: -U is implied by -u, but you used both.")
+        # -U
+        else:
+            msgs.append("NOTICE: Because of -U, output may be truncated.")
 
     # -M -g
     if cmd["map_words"] and cmd["get_different"]:
