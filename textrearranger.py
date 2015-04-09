@@ -7,6 +7,7 @@ from __future__ import print_function#, unicode_literals
 import random
 import options
 import copy
+import time
 import cProfile
 
 
@@ -15,6 +16,12 @@ def tokenizer(f):
     for line in f:
         for word in line.split(" "):
             yield word
+
+
+def check_speed(cmd):
+    """Slow down the program as user defined"""
+    if cmd["slow_output"]:
+        time.sleep(cmd["slow_speed"])
 
 
 def fill_word_map(cmd, wordMap):
@@ -310,6 +317,7 @@ def generate_analysis(cmd, dictionary, occurences, wordCount):
     sort = not cmd["block_inspection_sort"]
     output = search_dictionary(dictionary, level, sort, wordData, order=order)
     for line in output:
+        check_speed(cmd)
         cmd["output"].write(line + "\n")
 
 
@@ -392,7 +400,7 @@ def generate_text(cmd, dictionary, filterList, wordMap):
 
         if word == "\n":
             if not cmd["hard_truncate_newlines"]:
-                line += "\n"
+                output.append("\n")
             continue
         if word == "":
             if not cmd["truncate_whitespace"]:
@@ -414,6 +422,7 @@ def generate_text(cmd, dictionary, filterList, wordMap):
 
     output.append(line)
     for line in output:
+        check_speed(cmd)
         cmd["output"].write(line)
     # ensures one newline at the end of the output
     if not cmd["hard_truncate_newlines"] and (line and line[-1] != "\n"):

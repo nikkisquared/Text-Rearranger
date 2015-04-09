@@ -28,6 +28,11 @@ parser.add_argument("-H", "--halt-rearranger", action="store_true",
                     help="halts rearranger from running, so text can only "
                         "be manipulated by non-arrangement based ways, "
                         "such as using word maps")
+parser.add_argument("-z", "--slow-output", action="store_true",
+                    help="slows output to print one line per interval, "
+                        "defaults to 1 second")
+parser.add_argument("-Z", "--slow-speed", type=float, default=1.0,
+                    help="change the wait interval for -z")
 
 # layers to sort words on
 parser.add_argument("-C", "--compare-case", action="store_true",
@@ -57,6 +62,8 @@ parser.add_argument("-r", "--relative-usage", action="store_true",
 parser.add_argument("-e", "--equal-weighting", action="store_true",
                     help="forces equal weighting of every word, "
                         "but conflicts with and overrides -u and -r")
+parser.add_argument("-a", "--alphabetical-sort", action="store_true",
+                    help="sorts internal storage alphabetically")
 parser.add_argument("-M", "--map-words", action="store_true",
                     help="maps each word to a unique replacement, and "
                         "replaces every instance with that instead of "
@@ -67,8 +74,6 @@ parser.add_argument("-G", "--get-attempts", type=int, default=10,
                     help="specify number of times to try to get different "
                         "replacements, defaults to 10, and can "
                         "exponentially increase computing time")
-parser.add_argument("-a", "--alphabetical-sort", action="store_true",
-                    help="sorts internal storage alphabetically")
 parser.add_argument("-R", "--random-seed", type=int, default=-1,
                     help="seeds random with given number")
 
@@ -223,14 +228,14 @@ def validate_files(cmd):
         cmd["source"] = cmd["input"]
         msgs.append("NOTICE: source will be the same as input.")
 
-    # [module] -f "..." (without -S or -D)
+    # -f "..." (without -S or -D)
     if cmd["filter"]:
         if not (cmd["filter_same"] or cmd["filter_different"]):
             msgs.append("WARNING: A filter file does nothing without using "
                         "a filter, -S or -D.")
         elif cmd["filter"] == cmd["input"]:
             sys.exit("ERROR: filter and input files are the same.")
-    # [module] -S or -D (without -f "...")
+    # -S or -D (without -f "...")
     elif not cmd["filter"] and (cmd["filter_same"] or cmd["filter_different"]):
         if cmd["source"] != cmd["input"]:
             cmd["filter"] = cmd["source"]
@@ -241,25 +246,30 @@ def validate_files(cmd):
                     "same as input.")
 
     if cmd["word_map"]:
-        # [module] -m (without -M)
-        if not cmd["map_words"]:
-            msgs.append("NOTICE: Using given word map file %s." % 
-                cmd["word_map"])
-        # [module] -m -M
-        else:
+        # -m -M
+        if cmd["map_words"]:
             msgs.append("NOTICE: Word map will be initialized with %s." % 
+                cmd["word_map"])
+        # -m (without -M)
+        else:
+            msgs.append("NOTICE: Using given word map file %s." % 
                 cmd["word_map"])
 
     # check output file settings, and try to open it
-    query = "%s already exists. Overwrite? Y/N\n"
     if cmd["output"] != sys.stdout:
         if os.path.isfile(cmd["output"]): 
+            query = "%s already exists. Overwrite? Y/N\n"
+            # -o "..." -O
             if cmd["overwrite"]:
                 msgs.append("NOTICE: Automatically overwriting %s." % 
                     cmd["output"])
             elif not raw_input(query % cmd["output"]).startswith("Y"):
                 sys.exit("Terminating. Rename your file or output parameter.")
         cmd["output"] = open(cmd["output"], 'w')
+    # -O (without -o "...")
+    elif cmd["overwrite"]:
+        msgs.append("NOTICE: -O does nothing without specifying an output "
+                    "file with -o.")
 
     return msgs
 
@@ -271,40 +281,46 @@ def validate_command(cmd):
     """
     msgs = []
 
-    # [module] -E -w (0 or 3)
+    # -E -w (0 or 3)
     if cmd["explode_on_warning"] and (cmd["warning_level"] in (0, 3)):
         msgs.append("WARNING: Program set to crash on warnings, but warnings "
                     "have been hidden. Only one option should be set.")
+    # -H
+    if cmd["halt_rearranger"]:
+        msgs.append("NOTICE: No text will be re-arranged since you called -H.")
+    # -Z [x] (without -z)
+    if cmd["slow_speed"] != 1.0 and not cmd["slow_output"]:
+        msgs.append("NOTICE: Defining -Z does nothing without calling -z.")
 
-    # [module] -c (without -l)
+    # -c (without -l)
     if cmd["case_sensitive"] and not cmd["first_letter"]:
         msgs.append("NOTICE: Using -c does nothing without -l.")
     if cmd["compare_lower"]:
-        # [module] -c -C
+        # -C -L
         if cmd["compare_case"]:
             msgs.append("NOTICE: -C does nothing with -L on.")
-        # [module] -c -L
-        if cmd["case_sensitive"]:
+        # -l -c -L
+        if cmd["case_sensitive"] and cmd["first_letter"]:
             msgs.append("NOTICE: -c does nothing with -L on.")
 
-    # [module] -b (without -u)
+    # -b (without -u)
     if cmd["block_shuffle"] and not cmd["limited_usage"]:
         msgs.append("NOTICE: Using -b does nothing without -u.")
 
-    # [module] -M -u, -M -r, -M -e, or any combination
+    # -M -u, -M -r, -M -e, or any combination
     if (cmd["map_words"] and (cmd["limited_usage"] or 
             cmd["relative_usage"] or cmd["equal_weighting"])):
         msgs.append("WARNING: -M overrides -u, -r, and -e, but you used "
                     "two of them.")
-    # [module] -u -e, -r -e, or -u -r -e
+    # -u -e, -r -e, or -u -r -e
     elif (cmd["equal_weighting"] and 
             (cmd["limited_usage"] or cmd["relative_usage"])):
         msgs.append("WARNING: -e overrides -u and -r, but you used two "
                     "of them.")
-    # [module] -u -r
+    # -u -r
     elif cmd["limited_usage"] and cmd["relative_usage"]:
         msgs.append("WARNING: -r overrides -u, but you used both.")
-    # [module] (without -u, -r, -e, -M, or -a, and not -I or -P)
+    # (without -u, -r, -e, -M, or -a, and not -I or -P)
     elif (not (cmd["limited_usage"] or cmd["relative_usage"] or 
             cmd["equal_weighting"] or cmd["map_words"] or
             cmd["alphabetical_sort"]) and
@@ -313,71 +329,86 @@ def validate_command(cmd):
                     "none of -u, -r, -e, -M, or -a were used.")
         cmd["relative_usage"] = True
 
-    # [module] -m -g
+    # -M -g
     if cmd["map_words"] and cmd["get_different"]:
-        msgs.append("NOTICE: -g is implied by -m, but you used both.")
-    # [module] -G (without -m or -g)
+        msgs.append("NOTICE: -g is implied by -M, but you used both.")
+    # -G (without -M or -g)
     if (cmd["get_attempts"] != 10 and
             not (cmd["map_words"] or cmd["get_different"])):
-        msgs.append("NOTICE: -G does nothing without -g or -m.")
+        msgs.append("NOTICE: -G does nothing without -g or -M.")
 
-    # [module] -p -v
+    # -p -v
     if (cmd["preserve_punctuation"] and cmd["void_outer"]):
         msgs.append("NOTICE: You used -p and -v, but -v overrides -p.")
-    # [module] -t -T
+    # -t -T
     if cmd["soft_truncate_newlines"] and cmd["hard_truncate_newlines"]:
         msgs.append("NOTICE: You used both -t and -T, but -T implies -t.")
 
-    # [module] -s source.txt -u
+    # -s source.txt -u
     if (cmd["source"] and cmd["limited_usage"] and
             cmd["input"] != cmd["source"]):
         msgs.append("WARNING: You are using a custom source with usage "
                     "limiting on, so the output might be truncated.")
 
-    # [module] -B (without -I)
+    # -B (without -I)
     if cmd["block_inspection_sort"] and not cmd["inspection_mode"]:
         msgs.append("NOTICE: -B does nothing without -I.")
-    # [module] -q or -Q (without -I)
+    # -q or -Q (without -I)
     if (not cmd["inspection_mode"] and
             (cmd["frequency_count"] or cmd["frequency_percent"])):
         msgs.append("NOTICE: -q and -Q do nothing without -I.")
-    # [module] -A [x] (without -Q)
+    # -A [x] (without -Q)
     if cmd["decimal_accuracy"] != 2 and not cmd["frequency_percent"]:
-        msgs.append("NOTICE: -A effects only -Q, but you didn't call it.")
-    # [module] -I -S or -D (without -F)
+        msgs.append("NOTICE: -A does nothing without calling -Q.")
+    # -I -S or -D (without -F)
     if (cmd["inspection_mode"] and not cmd["filter_source"] and
             (cmd["filter_same"] or cmd["filter_different"])):
-        msgs.append("NOTICE: -I with -S or -D requires the -F flag.")
-    # [module] -X [x] (where x is >100)
+        msgs.append("WARNING: -I with -S or -D requires the -F flag. It has "
+                    "been automatically set.")
+        cmd["filter_source"] = True
+    # -x, -y, -X, or -Y (without -I)
+    if (not cmd["inspection_mode"] and (cmd["count_minimum"] != 0 or
+            cmd["count_maximum"] != sys.maxint or
+            cmd["percent_minimum"] != 0 or
+            cmd["percent_maximum"] != float("inf"))):
+        msgs.append("NOTICE: You defined one or more of -x, -y, -X, and -Y "
+                    "without calling -I, so they do nothing.")
+    # -x [a] -y [b] (where b < a)
+    if cmd["count_maximum"] < cmd["count_minimum"]:
+        msgs.append("WARNING: You defined -y lower than -x, meaning nothing "
+                    "will be output.")
+    # -X [x] (where x is >100)
     if cmd["percent_minimum"] > 100:
         msgs.append("WARNING: -X was defined with a value higher than 100, "
                     "meaning nothing will show up for inspection.")
+    # -X [a] -Y [b] (where b < a)
+    elif cmd["percent_maximum"] < cmd["percent_minimum"]:
+        msgs.append("WARNING: You defined -Y lower than -X, meaning nothing "
+                    "will be output.")
 
-
-    # [module] -s "..." -P
-    if cmd["pure_mode"] and cmd["source"]:
+    # -s "..." -P (without -F)
+    if cmd["pure_mode"] and cmd["source"] and not cmd["filter_source"]:
         msgs.append("NOTICE: You defined a source, but with -P the source "
                     "will not be used for anything.")
 
-    # [module] -I -P
+    # -I -P
     if cmd["inspection_mode"] and cmd["pure_mode"]:
         msgs.append("WARNING: -P should not be used with -I. Results are "
                     "undefined and may be undesired.")
-    # [module] -K -P
+    # -K -P
     elif cmd["keep_mode"] and cmd["pure_mode"]:
         msgs.append("WARNING: Filter modes -K and -P are oppositional, "
                     "but you used both. Results are undefined.")
-    # [module] -I -K
+    # -I -K
     elif cmd["inspection_mode"] and cmd["keep_mode"]:
         msgs.append("WARNING: -K should not be used with -I. Results are "
                     "undefined and may be undesired.")
 
-    # [module] -S -D
+    # -S -D
     if cmd["filter_same"] and cmd["filter_different"]:
         msgs.append("WARNING: Filters -S and -D are oppositional, "
                     "but you used both. Results are undefined.")
-    # MAKE SURE K P S D m WORK!!!!
-    # [module] -S -D (without -I, -K, or -P)
+    # -S -D (without -I, -K, or -P)
     if ((cmd["filter_same"] or cmd["filter_different"]) and
             not (cmd["inspection_mode"] or cmd["keep_mode"] or
             cmd["pure_mode"])):
@@ -385,8 +416,5 @@ def validate_command(cmd):
         msgs.append("WARNING: You called a filter, -S or -D, but without "
                     "using a filter mode, -I, -K, or -S. Falling back on -K.")
         cmd["keep_mode"] = True
-    # [module] -P -F
-    if cmd["filter_source"] and cmd["pure_mode"]:
-        msgs.append("NOTICE: -F does nothing in -P mode.")
 
     return msgs
