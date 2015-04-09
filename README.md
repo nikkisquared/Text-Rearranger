@@ -137,8 +137,8 @@ API
 	-D, --filter-different
 						  keeps/filters only words not found in source
 	-F, --filter-source   filters the source files' internal storage
-	
-	-z, --slow-output     slows output to print one line per interval, defaults
+
+	-Z, --slow-output     slows output to print one line per interval, defaults
 						  to 1 second
-	-Z SLOW_SPEED, --slow-speed SLOW_SPEED
+	-z SLOW_SPEED, --slow-speed SLOW_SPEED
 						  change the wait interval for -z
