@@ -1,3 +1,5 @@
 *.txt
 *.sublime-*
 *.pyc
+dist
+*.egg-info

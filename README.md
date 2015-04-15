@@ -1,7 +1,11 @@
 Text Rearranger
 ===============
 
-Text Rearranger is a program that randomly redistributes the contents of a stream of text based on a couple key characteristics: the case of the word, the first letter, and the length. It includes a wide array of command line options to let users fine tune what algorithms they want to run, as well as give a lot of room for different uses. Requires Python 2.
+Text Rearranger is a program that randomly redistributes the contents of a stream of text based on a couple key characteristics: the case of the word, the first letter, and the length. It includes a wide array of command line options to let users fine tune what algorithms they want to run, as well as give a lot of room for different uses. Requires Python 2. Also available on PyPi at https://pypi.python.org/pypi/text-rearranger/1.0.
+
+Install
+=======
+Either download from GitHub, or `pip install text_rearranger`.
 
 Usage
 =====
